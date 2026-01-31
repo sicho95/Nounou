@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculatrice Pajemploi</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --bg: #f3f4f6;
+            --card: #ffffff;
+            --text: #1f2937;
+            --border: #e5e7eb;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            padding: 15px;
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary);
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: var(--card);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+            border: 1px solid var(--border);
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            margin-top: 0;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--bg);
+            color: #374151;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            align-items: start;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #4b5563;
+        }
+
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 16px;
+            box-sizing: border-box;
+            background: #fff;
+        }
+
+        input:focus {
+            outline: 2px solid var(--primary);
+            border-color: transparent;
+        }
+
+        .help {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 2px;
+        }
+
+        .badge {
+            display: block;
+            text-align: center;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .badge-incomplete { background: #ffedd5; color: #9a3412; }
+        .badge-complete { background: #dcfce7; color: #166534; }
+
+        .btn-calc {
+            width: 100%;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 15px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
+            transition: transform 0.1s;
+        }
+        .btn-calc:active { transform: scale(0.98); }
+
+        .result-box {
+            display: none;
+            background: #eef2ff;
+            border: 2px dashed var(--primary);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .res-header {
+            text-align: center;
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-size: 0.9rem;
+        }
+
+        .res-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #e0e7ff;
+        }
+        .res-row:last-child { border-bottom: none; }
+
+        .res-label { font-size: 0.9rem; color: #374151; }
+
+        .res-val {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-weight: 700;
+            font-size: 1.1rem;
+            background: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            color: var(--primary);
+            border: 1px solid #c7d2fe;
+        }
+
+        .total-pay {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 1rem;
+            color: #374151;
+        }
+        .total-amount {
+            display: block;
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #111827;
+        }
+
+        .section-divider {
+            margin: 15px 0;
+            border-top: 1px dashed #d1d5db;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Déclaration Nounou</h1>
+
+    <div class="card">
+        <h2>⚙️ Contrat (Paramètres Fixes)</h2>
+        
+        <div class="grid">
+            <div class="form-group">
+                <label>Taux Horaire Net (€)</label>
+                <input type="number" id="taux" step="0.01" placeholder="4.00">
+            </div>
+            <div class="form-group">
+                <label>Semaines / an</label>
+                <input type="number" id="semAn" placeholder="45" oninput="updateMode()">
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="form-group">
+                <label>Indemnité Entretien (€/jour)</label>
+                <input type="number" id="txIE" step="0.01" value="3.74">
+            </div>
+            <div class="form-group">
+                <label>Indemnité Repas (€/repas)</label>
+                <input type="number" id="txIR" step="0.01" value="4.00">
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="form-group">
+                <label>Majoration H. Majorées (%)</label>
+                <input type="number" id="majSupp" step="1" value="25" placeholder="25">
+                <div class="help">Ex: 25% = saisir 25</div>
+            </div>
+            <div class="form-group">
+                <label>Majoration H. Compl (%)</label>
+                <input type="number" id="majCompl" step="1" value="10" placeholder="10">
+                <div class="help">Ex: 10% = saisir 10</div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="form-group">
+                <label>Heures Normales / sem</label>
+                <input type="number" id="hNormales" step="0.5" placeholder="40">
+                <div class="help">Base hebdomadaire</div>
+            </div>
+            <div class="form-group">
+                <label>Heures Majorées / sem</label>
+                <input type="number" id="hSupp" step="0.5" value="0">
+                <div class="help">Régulières contractuelles</div>
+            </div>
+        </div>
+
+        <div id="modeBadge" class="badge badge-incomplete">Année Incomplète (< 47 sem)</div>
+    </div>
+
+    <div class="card">
+        <h2>📅 Ce mois-ci (Variables)</h2>
+
+        <div class="grid">
+            <div class="form-group">
+                <label>Jours réels présence</label>
+                <input type="number" id="jReels" placeholder="18">
+                <div class="help">Auto-rempli pour le mois</div>
+            </div>
+            <div class="form-group">
+                <label>Repas fournis (Nb)</label>
+                <input type="number" id="nbRepas" placeholder="18">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Heures Complémentaires (Nb)</label>
+            <input type="number" id="hComp" step="0.5" value="0">
+            <div class="help">Heures exceptionnelles ce mois-ci</div>
+        </div>
+
+        <div class="form-group">
+            <label>Paiement Congés Payés (€)</label>
+            <input type="number" id="mtCP" step="0.01" value="0">
+            <div class="help">Uniquement si payés ce mois-ci (ex: juin)</div>
+        </div>
+    </div>
+
+    <button class="btn-calc" onclick="calculate()">CALCULER 🚀</button>
+
+    <div id="results" class="result-box">
+        <div class="res-header">📋 Détails pour Pajemploi</div>
+        
+        <div class="res-row">
+            <span class="res-label">Heures normales mensuelles</span>
+            <span class="res-val" id="outHN">0</span>
+        </div>
+        <div class="res-row">
+            <span class="res-label">Heures majorées mensuelles</span>
+            <span class="res-val" id="outHS">0</span>
+        </div>
+        <div class="res-row">
+            <span class="res-label">Heures complémentaires</span>
+            <span class="res-val" id="outHC">0</span>
+        </div>
+        <div class="res-row">
+            <span class="res-label">Jours d'activité</span>
+            <span class="res-val" id="outJA">0</span>
+        </div>
+        <div class="res-row">
+            <span class="res-label">Jours congés payés</span>
+            <span class="res-val" id="outJCP">0</span>
+        </div>
+        
+        <div class="section-divider"></div>
+        
+        <div class="res-row">
+            <span class="res-label">💰 Heures Normales</span>
+            <span class="res-val" id="outSalNormal">0.00 €</span>
+        </div>
+        <div class="res-row">
+            <span class="res-label">💰 Heures Majorées</span>
+            <span class="res-val" id="outSalSupp">0.00 €</span>
+        </div>
+        <div class="res-row">
+            <span class="res-label">💰 Heures Complémentaires</span>
+            <span class="res-val" id="outSalCompl">0.00 €</span>
+        </div>
+        <div class="res-row">
+            <span class="res-label">💰 Congés Payés</span>
+            <span class="res-val" id="outSalCP">0.00 €</span>
+        </div>
+        <div class="res-row">
+            <span class="res-label"><strong>Salaire Net Total</strong></span>
+            <span class="res-val" id="outSal">0.00 €</span>
+        </div>
+        
+        <div class="section-divider"></div>
+        
+        <div class="res-row">
+            <span class="res-label">Indemnités Entretien</span>
+            <span class="res-val" id="outIE">0.00 €</span>
+        </div>
+        <div class="res-row">
+            <span class="res-label">Indemnités Repas</span>
+            <span class="res-val" id="outIR">0.00 €</span>
+        </div>
+
+        <div class="total-pay">
+            Virement bancaire à faire :
+            <span class="total-amount" id="outTotal">0.00 €</span>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Calcul du nombre de jours ouvrés dans le mois en cours
+    function getWorkingDaysInCurrentMonth() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        
+        let workingDays = 0;
+        for (let day = firstDay; day <= lastDay; day.setDate(day.getDate() + 1)) {
+            const dayOfWeek = day.getDay();
+            // Lundi(1) à Vendredi(5)
+            if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+                workingDays++;
+            }
+        }
+        return workingDays;
+    }
+
+    window.onload = function() {
+        // Charger les paramètres sauvegardés
+        if(localStorage.getItem('nounou_cfg')) {
+            const data = JSON.parse(localStorage.getItem('nounou_cfg'));
+            document.getElementById('taux').value = data.taux || 4.00;
+            document.getElementById('semAn').value = data.semAn || 45;
+            document.getElementById('hNormales').value = data.hNormales || 40;
+            document.getElementById('hSupp').value = data.hSupp || 0;
+            document.getElementById('majSupp').value = data.majSupp || 25;
+            document.getElementById('majCompl').value = data.majCompl || 10;
+            document.getElementById('txIE').value = data.txIE || 3.74;
+            document.getElementById('txIR').value = data.txIR || 4.00;
+        }
+        
+        // Pré-remplir les jours ouvrés du mois
+        const workingDays = getWorkingDaysInCurrentMonth();
+        document.getElementById('jReels').value = workingDays;
+        document.getElementById('nbRepas').value = workingDays;
+        
+        updateMode();
+    };
+
+    function updateMode() {
+        const sem = parseFloat(document.getElementById('semAn').value) || 0;
+        const badge = document.getElementById('modeBadge');
+        if (sem >= 47) {
+            badge.className = "badge badge-complete";
+            badge.innerText = "Année Complète (CP inclus dans salaire)";
+        } else {
+            badge.className = "badge badge-incomplete";
+            badge.innerText = "Année Incomplète (CP à payer en +)";
+        }
+    }
+
+    function calculate() {
+        // Récupération des valeurs du contrat
+        const taux = parseFloat(document.getElementById('taux').value) || 0;
+        const semAn = parseFloat(document.getElementById('semAn').value) || 0;
+        const hNormales = parseFloat(document.getElementById('hNormales').value) || 0;
+        const hSupp = parseFloat(document.getElementById('hSupp').value) || 0;
+        const majSupp = parseFloat(document.getElementById('majSupp').value) || 0;
+        const majCompl = parseFloat(document.getElementById('majCompl').value) || 0;
+        const txIE = parseFloat(document.getElementById('txIE').value) || 0;
+        const txIR = parseFloat(document.getElementById('txIR').value) || 0;
+
+        // Récupération des valeurs variables du mois
+        const jReels = parseFloat(document.getElementById('jReels').value) || 0;
+        const nbRepas = parseFloat(document.getElementById('nbRepas').value) || 0;
+        const hComp = parseFloat(document.getElementById('hComp').value) || 0;
+        const mtCP = parseFloat(document.getElementById('mtCP').value) || 0;
+
+        // Sauvegarde de la configuration
+        const config = {
+            taux: document.getElementById('taux').value,
+            semAn: document.getElementById('semAn').value,
+            hNormales: document.getElementById('hNormales').value,
+            hSupp: document.getElementById('hSupp').value,
+            majSupp: document.getElementById('majSupp').value,
+            majCompl: document.getElementById('majCompl').value,
+            txIE: document.getElementById('txIE').value,
+            txIR: document.getElementById('txIR').value
+        };
+        localStorage.setItem('nounou_cfg', JSON.stringify(config));
+
+        // Calculs pour Pajemploi
+        const valHN = Math.round((hNormales * semAn) / 12);
+        const valHS = Math.round((hSupp * semAn) / 12);
+        const valJA = jReels; // Jours réels du mois
+        
+        let valJCP = 0;
+        if (semAn < 47 && mtCP > 0) {
+            valJCP = 2.5; 
+        }
+
+        // Calculs salaires
+        const tauxSupp = taux * (1 + majSupp / 100);
+        const tauxCompl = taux * (1 + majCompl / 100);
+
+        const salNormal = (hNormales * semAn / 12) * taux;
+        const salSupp = (hSupp * semAn / 12) * tauxSupp;
+        const salCompl = hComp * tauxCompl;
+        
+        const valSal = salNormal + salSupp + salCompl + mtCP;
+        
+        // Indemnités
+        const valIE = jReels * txIE;
+        const valIR = nbRepas * txIR;
+        const valTotal = valSal + valIE + valIR;
+
+        // Affichage des résultats
+        document.getElementById('outHN').innerText = valHN;
+        document.getElementById('outHS').innerText = valHS;
+        document.getElementById('outHC').innerText = hComp;
+        document.getElementById('outJA').innerText = valJA;
+        document.getElementById('outJCP').innerText = valJCP;
+        
+        document.getElementById('outSalNormal').innerText = salNormal.toFixed(2).replace('.', ',') + ' €';
+        document.getElementById('outSalSupp').innerText = salSupp.toFixed(2).replace('.', ',') + ' €';
+        document.getElementById('outSalCompl').innerText = salCompl.toFixed(2).replace('.', ',') + ' €';
+        document.getElementById('outSalCP').innerText = mtCP.toFixed(2).replace('.', ',') + ' €';
+        document.getElementById('outSal').innerText = valSal.toFixed(2).replace('.', ',') + ' €';
+        
+        document.getElementById('outIE').innerText = valIE.toFixed(2).replace('.', ',') + ' €';
+        document.getElementById('outIR').innerText = valIR.toFixed(2).replace('.', ',') + ' €';
+        document.getElementById('outTotal').innerText = valTotal.toFixed(2).replace('.', ',') + " €";
+
+        document.getElementById('results').style.display = 'block';
+        document.getElementById('results').scrollIntoView({behavior: 'smooth'});
+    }
+</script>
+
+</body>
+</html>
