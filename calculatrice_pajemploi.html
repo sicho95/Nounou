@@ -55,6 +55,7 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 12px;
+            align-items: start;
         }
 
         .form-group {
@@ -204,34 +205,6 @@
 
         <div class="grid">
             <div class="form-group">
-                <label>Heures Normales / sem</label>
-                <input type="number" id="hNormales" step="0.5" placeholder="40">
-                <div class="help">Base hebdomadaire</div>
-            </div>
-            <div class="form-group">
-                <label>Heures Supplémentaires / sem</label>
-                <input type="number" id="hSupp" step="0.5" value="0">
-                <div class="help">Régulières contractuelles</div>
-            </div>
-        </div>
-
-        <div class="grid">
-            <div class="form-group">
-                <label>Majoration H. Supp (%)</label>
-                <input type="number" id="majSupp" step="1" value="25" placeholder="25">
-                <div class="help">Ex: 25% = saisir 25</div>
-            </div>
-            <div class="form-group">
-                <label>Majoration H. Compl (%)</label>
-                <input type="number" id="majCompl" step="1" value="10" placeholder="10">
-                <div class="help">Ex: 10% = saisir 10</div>
-            </div>
-        </div>
-
-        <div class="section-divider"></div>
-
-        <div class="grid">
-            <div class="form-group">
                 <label>Indemnité Entretien (€/jour)</label>
                 <input type="number" id="txIE" step="0.01" value="3.74">
             </div>
@@ -243,8 +216,27 @@
 
         <div class="grid">
             <div class="form-group">
-                <label>Jours / semaine</label>
-                <input type="number" id="jSem" placeholder="5">
+                <label>Majoration H. Majorées (%)</label>
+                <input type="number" id="majSupp" step="1" value="25" placeholder="25">
+                <div class="help">Ex: 25% = saisir 25</div>
+            </div>
+            <div class="form-group">
+                <label>Majoration H. Compl (%)</label>
+                <input type="number" id="majCompl" step="1" value="10" placeholder="10">
+                <div class="help">Ex: 10% = saisir 10</div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="form-group">
+                <label>Heures Normales / sem</label>
+                <input type="number" id="hNormales" step="0.5" placeholder="40">
+                <div class="help">Base hebdomadaire</div>
+            </div>
+            <div class="form-group">
+                <label>Heures Majorées / sem</label>
+                <input type="number" id="hSupp" step="0.5" value="0">
+                <div class="help">Régulières contractuelles</div>
             </div>
         </div>
 
@@ -289,7 +281,7 @@
             <span class="res-val" id="outHN">0</span>
         </div>
         <div class="res-row">
-            <span class="res-label">Heures supplémentaires mensuelles</span>
+            <span class="res-label">Heures majorées mensuelles</span>
             <span class="res-val" id="outHS">0</span>
         </div>
         <div class="res-row">
@@ -312,7 +304,7 @@
             <span class="res-val" id="outSalNormal">0.00 €</span>
         </div>
         <div class="res-row">
-            <span class="res-label">💰 Heures Supplémentaires</span>
+            <span class="res-label">💰 Heures Majorées</span>
             <span class="res-val" id="outSalSupp">0.00 €</span>
         </div>
         <div class="res-row">
@@ -377,7 +369,6 @@
             document.getElementById('hSupp').value = data.hSupp || 0;
             document.getElementById('majSupp').value = data.majSupp || 25;
             document.getElementById('majCompl').value = data.majCompl || 10;
-            document.getElementById('jSem').value = data.jSem || 5;
             document.getElementById('txIE').value = data.txIE || 3.74;
             document.getElementById('txIR').value = data.txIR || 4.00;
         }
@@ -410,7 +401,6 @@
         const hSupp = parseFloat(document.getElementById('hSupp').value) || 0;
         const majSupp = parseFloat(document.getElementById('majSupp').value) || 0;
         const majCompl = parseFloat(document.getElementById('majCompl').value) || 0;
-        const jSem = parseFloat(document.getElementById('jSem').value) || 0;
         const txIE = parseFloat(document.getElementById('txIE').value) || 0;
         const txIR = parseFloat(document.getElementById('txIR').value) || 0;
 
@@ -428,13 +418,13 @@
             hSupp: document.getElementById('hSupp').value,
             majSupp: document.getElementById('majSupp').value,
             majCompl: document.getElementById('majCompl').value,
-            jSem: document.getElementById('jSem').value,
             txIE: document.getElementById('txIE').value,
             txIR: document.getElementById('txIR').value
         };
         localStorage.setItem('nounou_cfg', JSON.stringify(config));
 
-        // Calculs pour Pajemploi
+        // Calculs pour Pajemploi - jours d'activité basés sur semaines travaillées
+        const jSem = 5; // 5 jours par semaine par défaut
         const valHN = Math.round((hNormales * semAn) / 12);
         const valHS = Math.round((hSupp * semAn) / 12);
         const valJA = Math.ceil((jSem * semAn) / 12);
