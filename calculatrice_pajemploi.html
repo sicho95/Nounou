@@ -423,11 +423,10 @@
         };
         localStorage.setItem('nounou_cfg', JSON.stringify(config));
 
-        // Calculs pour Pajemploi - jours d'activité basés sur semaines travaillées
-        const jSem = 5; // 5 jours par semaine par défaut
+        // Calculs pour Pajemploi
         const valHN = Math.round((hNormales * semAn) / 12);
         const valHS = Math.round((hSupp * semAn) / 12);
-        const valJA = Math.ceil((jSem * semAn) / 12);
+        const valJA = jReels; // Jours réels du mois
         
         let valJCP = 0;
         if (semAn < 47 && mtCP > 0) {
