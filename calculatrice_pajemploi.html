@@ -176,6 +176,11 @@
             font-weight: 800;
             color: #111827;
         }
+
+        .section-divider {
+            margin: 15px 0;
+            border-top: 1px dashed #d1d5db;
+        }
     </style>
 </head>
 <body>
@@ -184,7 +189,8 @@
     <h1>👶 Déclaration Nounou</h1>
 
     <div class="card">
-        <h2>⚙️ Contrat (Sauvegardé)</h2>
+        <h2>⚙️ Contrat (Paramètres Fixes)</h2>
+        
         <div class="grid">
             <div class="form-group">
                 <label>Taux Horaire Net (€)</label>
@@ -195,16 +201,53 @@
                 <input type="number" id="semAn" placeholder="45" oninput="updateMode()">
             </div>
         </div>
+
         <div class="grid">
             <div class="form-group">
-                <label>Heures / semaine</label>
-                <input type="number" id="hSem" placeholder="40">
+                <label>Heures Normales / sem</label>
+                <input type="number" id="hNormales" step="0.5" placeholder="40">
+                <div class="help">Base hebdomadaire</div>
             </div>
+            <div class="form-group">
+                <label>Heures Supplémentaires / sem</label>
+                <input type="number" id="hSupp" step="0.5" value="0">
+                <div class="help">Régulières contractuelles</div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="form-group">
+                <label>Majoration H. Supp (%)</label>
+                <input type="number" id="majSupp" step="1" value="25" placeholder="25">
+                <div class="help">Ex: 25% = saisir 25</div>
+            </div>
+            <div class="form-group">
+                <label>Majoration H. Compl (%)</label>
+                <input type="number" id="majCompl" step="1" value="10" placeholder="10">
+                <div class="help">Ex: 10% = saisir 10</div>
+            </div>
+        </div>
+
+        <div class="section-divider"></div>
+
+        <div class="grid">
+            <div class="form-group">
+                <label>Indemnité Entretien (€/jour)</label>
+                <input type="number" id="txIE" step="0.01" value="3.74">
+            </div>
+            <div class="form-group">
+                <label>Indemnité Repas (€/repas)</label>
+                <input type="number" id="txIR" step="0.01" value="4.00">
+            </div>
+        </div>
+
+        <div class="grid">
             <div class="form-group">
                 <label>Jours / semaine</label>
                 <input type="number" id="jSem" placeholder="5">
             </div>
         </div>
+
         <div id="modeBadge" class="badge badge-incomplete">Année Incomplète (< 47 sem)</div>
     </div>
 
@@ -215,7 +258,7 @@
             <div class="form-group">
                 <label>Jours réels présence</label>
                 <input type="number" id="jReels" placeholder="18">
-                <div class="help">Pour calcul entretien</div>
+                <div class="help">Auto-rempli pour le mois</div>
             </div>
             <div class="form-group">
                 <label>Repas fournis (Nb)</label>
@@ -223,15 +266,10 @@
             </div>
         </div>
 
-        <div class="grid">
-            <div class="form-group">
-                <label>Indemnité Entretien (€)</label>
-                <input type="number" id="txIE" step="0.01" value="3.74">
-            </div>
-            <div class="form-group">
-                <label>Indemnité Repas (€)</label>
-                <input type="number" id="txIR" step="0.01" value="4.00">
-            </div>
+        <div class="form-group">
+            <label>Heures Complémentaires (Nb)</label>
+            <input type="number" id="hComp" step="0.5" value="0">
+            <div class="help">Heures exceptionnelles ce mois-ci</div>
         </div>
 
         <div class="form-group">
@@ -239,22 +277,24 @@
             <input type="number" id="mtCP" step="0.01" value="0">
             <div class="help">Uniquement si payés ce mois-ci (ex: juin)</div>
         </div>
-
-        <div class="form-group">
-            <label>Heures Complémentaires (Nb)</label>
-            <input type="number" id="hComp" step="0.5" value="0">
-            <div class="help">Heures faites en plus du planning</div>
-        </div>
     </div>
 
     <button class="btn-calc" onclick="calculate()">CALCULER 🚀</button>
 
     <div id="results" class="result-box">
-        <div class="res-header">📋 Copiez ces valeurs dans Pajemploi</div>
-
+        <div class="res-header">📋 Détails pour Pajemploi</div>
+        
         <div class="res-row">
-            <span class="res-label">Heures normales</span>
+            <span class="res-label">Heures normales mensuelles</span>
             <span class="res-val" id="outHN">0</span>
+        </div>
+        <div class="res-row">
+            <span class="res-label">Heures supplémentaires mensuelles</span>
+            <span class="res-val" id="outHS">0</span>
+        </div>
+        <div class="res-row">
+            <span class="res-label">Heures complémentaires</span>
+            <span class="res-val" id="outHC">0</span>
         </div>
         <div class="res-row">
             <span class="res-label">Jours d'activité</span>
@@ -264,21 +304,39 @@
             <span class="res-label">Jours congés payés</span>
             <span class="res-val" id="outJCP">0</span>
         </div>
+        
+        <div class="section-divider"></div>
+        
         <div class="res-row">
-            <span class="res-label">Salaire Net Total</span>
-            <span class="res-val" id="outSal">0.00</span>
+            <span class="res-label">💰 Heures Normales</span>
+            <span class="res-val" id="outSalNormal">0.00 €</span>
         </div>
         <div class="res-row">
+            <span class="res-label">💰 Heures Supplémentaires</span>
+            <span class="res-val" id="outSalSupp">0.00 €</span>
+        </div>
+        <div class="res-row">
+            <span class="res-label">💰 Heures Complémentaires</span>
+            <span class="res-val" id="outSalCompl">0.00 €</span>
+        </div>
+        <div class="res-row">
+            <span class="res-label">💰 Congés Payés</span>
+            <span class="res-val" id="outSalCP">0.00 €</span>
+        </div>
+        <div class="res-row">
+            <span class="res-label"><strong>Salaire Net Total</strong></span>
+            <span class="res-val" id="outSal">0.00 €</span>
+        </div>
+        
+        <div class="section-divider"></div>
+        
+        <div class="res-row">
             <span class="res-label">Indemnités Entretien</span>
-            <span class="res-val" id="outIE">0.00</span>
+            <span class="res-val" id="outIE">0.00 €</span>
         </div>
         <div class="res-row">
             <span class="res-label">Indemnités Repas</span>
-            <span class="res-val" id="outIR">0.00</span>
-        </div>
-         <div class="res-row">
-            <span class="res-label">Heures Complémentaires</span>
-            <span class="res-val" id="outHC">0</span>
+            <span class="res-val" id="outIR">0.00 €</span>
         </div>
 
         <div class="total-pay">
@@ -289,16 +347,46 @@
 </div>
 
 <script>
+    // Calcul du nombre de jours ouvrés dans le mois en cours
+    function getWorkingDaysInCurrentMonth() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        
+        let workingDays = 0;
+        for (let day = firstDay; day <= lastDay; day.setDate(day.getDate() + 1)) {
+            const dayOfWeek = day.getDay();
+            // Lundi(1) à Vendredi(5)
+            if (dayOfWeek >= 1 && dayOfWeek <= 5) {
+                workingDays++;
+            }
+        }
+        return workingDays;
+    }
+
     window.onload = function() {
+        // Charger les paramètres sauvegardés
         if(localStorage.getItem('nounou_cfg')) {
             const data = JSON.parse(localStorage.getItem('nounou_cfg'));
             document.getElementById('taux').value = data.taux || 4.00;
             document.getElementById('semAn').value = data.semAn || 45;
-            document.getElementById('hSem').value = data.hSem || 40;
+            document.getElementById('hNormales').value = data.hNormales || 40;
+            document.getElementById('hSupp').value = data.hSupp || 0;
+            document.getElementById('majSupp').value = data.majSupp || 25;
+            document.getElementById('majCompl').value = data.majCompl || 10;
             document.getElementById('jSem').value = data.jSem || 5;
             document.getElementById('txIE').value = data.txIE || 3.74;
             document.getElementById('txIR').value = data.txIR || 4.00;
         }
+        
+        // Pré-remplir les jours ouvrés du mois
+        const workingDays = getWorkingDaysInCurrentMonth();
+        document.getElementById('jReels').value = workingDays;
+        document.getElementById('nbRepas').value = workingDays;
+        
         updateMode();
     };
 
@@ -315,50 +403,77 @@
     }
 
     function calculate() {
+        // Récupération des valeurs du contrat
         const taux = parseFloat(document.getElementById('taux').value) || 0;
         const semAn = parseFloat(document.getElementById('semAn').value) || 0;
-        const hSem = parseFloat(document.getElementById('hSem').value) || 0;
+        const hNormales = parseFloat(document.getElementById('hNormales').value) || 0;
+        const hSupp = parseFloat(document.getElementById('hSupp').value) || 0;
+        const majSupp = parseFloat(document.getElementById('majSupp').value) || 0;
+        const majCompl = parseFloat(document.getElementById('majCompl').value) || 0;
         const jSem = parseFloat(document.getElementById('jSem').value) || 0;
-
-        const jReels = parseFloat(document.getElementById('jReels').value) || 0;
-        const nbRepas = parseFloat(document.getElementById('nbRepas').value) || 0;
         const txIE = parseFloat(document.getElementById('txIE').value) || 0;
         const txIR = parseFloat(document.getElementById('txIR').value) || 0;
-        const mtCP = parseFloat(document.getElementById('mtCP').value) || 0;
-        const hComp = parseFloat(document.getElementById('hComp').value) || 0;
 
+        // Récupération des valeurs variables du mois
+        const jReels = parseFloat(document.getElementById('jReels').value) || 0;
+        const nbRepas = parseFloat(document.getElementById('nbRepas').value) || 0;
+        const hComp = parseFloat(document.getElementById('hComp').value) || 0;
+        const mtCP = parseFloat(document.getElementById('mtCP').value) || 0;
+
+        // Sauvegarde de la configuration
         const config = {
             taux: document.getElementById('taux').value,
             semAn: document.getElementById('semAn').value,
-            hSem: document.getElementById('hSem').value,
+            hNormales: document.getElementById('hNormales').value,
+            hSupp: document.getElementById('hSupp').value,
+            majSupp: document.getElementById('majSupp').value,
+            majCompl: document.getElementById('majCompl').value,
             jSem: document.getElementById('jSem').value,
             txIE: document.getElementById('txIE').value,
             txIR: document.getElementById('txIR').value
         };
         localStorage.setItem('nounou_cfg', JSON.stringify(config));
 
-        let valHN = Math.round((hSem * semAn) / 12);
-        let valJA = Math.ceil((jSem * semAn) / 12);
-
+        // Calculs pour Pajemploi
+        const valHN = Math.round((hNormales * semAn) / 12);
+        const valHS = Math.round((hSupp * semAn) / 12);
+        const valJA = Math.ceil((jSem * semAn) / 12);
+        
         let valJCP = 0;
         if (semAn < 47 && mtCP > 0) {
             valJCP = 2.5; 
         }
 
-        let salaireMensualise = (taux * hSem * semAn) / 12;
-        let salaireHC = hComp * taux;
-        let valSal = salaireMensualise + salaireHC + mtCP;
-        let valIE = jReels * txIE;
-        let valIR = nbRepas * txIR;
-        let valTotal = valSal + valIE + valIR;
+        // Calculs salaires
+        const tauxSupp = taux * (1 + majSupp / 100);
+        const tauxCompl = taux * (1 + majCompl / 100);
 
+        const salNormal = (hNormales * semAn / 12) * taux;
+        const salSupp = (hSupp * semAn / 12) * tauxSupp;
+        const salCompl = hComp * tauxCompl;
+        
+        const valSal = salNormal + salSupp + salCompl + mtCP;
+        
+        // Indemnités
+        const valIE = jReels * txIE;
+        const valIR = nbRepas * txIR;
+        const valTotal = valSal + valIE + valIR;
+
+        // Affichage des résultats
         document.getElementById('outHN').innerText = valHN;
+        document.getElementById('outHS').innerText = valHS;
+        document.getElementById('outHC').innerText = hComp;
         document.getElementById('outJA').innerText = valJA;
         document.getElementById('outJCP').innerText = valJCP;
-        document.getElementById('outSal').innerText = valSal.toFixed(2).replace('.', ',');
-        document.getElementById('outIE').innerText = valIE.toFixed(2).replace('.', ',');
-        document.getElementById('outIR').innerText = valIR.toFixed(2).replace('.', ',');
-        document.getElementById('outHC').innerText = hComp;
+        
+        document.getElementById('outSalNormal').innerText = salNormal.toFixed(2).replace('.', ',') + ' €';
+        document.getElementById('outSalSupp').innerText = salSupp.toFixed(2).replace('.', ',') + ' €';
+        document.getElementById('outSalCompl').innerText = salCompl.toFixed(2).replace('.', ',') + ' €';
+        document.getElementById('outSalCP').innerText = mtCP.toFixed(2).replace('.', ',') + ' €';
+        document.getElementById('outSal').innerText = valSal.toFixed(2).replace('.', ',') + ' €';
+        
+        document.getElementById('outIE').innerText = valIE.toFixed(2).replace('.', ',') + ' €';
+        document.getElementById('outIR').innerText = valIR.toFixed(2).replace('.', ',') + ' €';
         document.getElementById('outTotal').innerText = valTotal.toFixed(2).replace('.', ',') + " €";
 
         document.getElementById('results').style.display = 'block';
