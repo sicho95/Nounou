@@ -43,6 +43,33 @@
             border: 1px solid var(--border);
         }
 
+        .collapsible {
+            background: #e0e7ff;
+            cursor: pointer;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .collapsible:hover {
+            background: #c7d2fe;
+        }
+
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+
+        .collapsible-content.active {
+            max-height: 2000px;
+        }
+
         h2 {
             font-size: 1.1rem;
             margin-top: 0;
@@ -70,7 +97,7 @@
             color: #4b5563;
         }
 
-        input {
+        input, textarea {
             width: 100%;
             padding: 10px;
             border: 1px solid #d1d5db;
@@ -80,7 +107,13 @@
             background: #fff;
         }
 
-        input:focus {
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+            font-family: inherit;
+        }
+
+        input:focus, textarea:focus {
             outline: 2px solid var(--primary);
             border-color: transparent;
         }
@@ -103,20 +136,35 @@
         .badge-incomplete { background: #ffedd5; color: #9a3412; }
         .badge-complete { background: #dcfce7; color: #166534; }
 
-        .btn-calc {
+        .btn {
             width: 100%;
-            background-color: var(--primary);
-            color: white;
             border: none;
             padding: 15px;
             font-size: 1.1rem;
             font-weight: 600;
             border-radius: 8px;
             cursor: pointer;
-            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
             transition: transform 0.1s;
+            margin-bottom: 10px;
         }
-        .btn-calc:active { transform: scale(0.98); }
+
+        .btn:active { transform: scale(0.98); }
+
+        .btn-calc {
+            background-color: var(--primary);
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
+        }
+
+        .btn-secondary {
+            background-color: #6b7280;
+            color: white;
+        }
+
+        .btn-success {
+            background-color: #10b981;
+            color: white;
+        }
 
         .result-box {
             display: none;
@@ -182,12 +230,193 @@
             margin: 15px 0;
             border-top: 1px dashed #d1d5db;
         }
+
+        /* Styles pour l'impression de la fiche de paie */
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+                background: white;
+            }
+            
+            @page {
+                size: A4;
+                margin: 15mm;
+            }
+        }
+
+        .payslip {
+            display: none;
+            background: white;
+            padding: 40px;
+            max-width: 210mm;
+            margin: 0 auto;
+        }
+
+        .payslip-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid var(--primary);
+        }
+
+        .payslip-title {
+            text-align: center;
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin: 20px 0;
+            color: var(--primary);
+        }
+
+        .payslip-section {
+            margin-bottom: 20px;
+        }
+
+        .payslip-section h3 {
+            background: #f3f4f6;
+            padding: 8px 12px;
+            margin: 10px 0;
+            font-size: 0.95rem;
+            border-left: 4px solid var(--primary);
+        }
+
+        .payslip-info {
+            font-size: 0.9rem;
+            line-height: 1.8;
+        }
+
+        .payslip-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 0.9rem;
+        }
+
+        .payslip-table th {
+            background: #f3f4f6;
+            padding: 10px;
+            text-align: left;
+            border: 1px solid #d1d5db;
+            font-weight: 600;
+        }
+
+        .payslip-table td {
+            padding: 8px 10px;
+            border: 1px solid #d1d5db;
+        }
+
+        .payslip-table .amount {
+            text-align: right;
+            font-family: ui-monospace, monospace;
+        }
+
+        .payslip-total {
+            background: #eef2ff;
+            font-weight: bold;
+        }
+
+        .payslip-footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #d1d5db;
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h1>Déclaration Nounou</h1>
+    <h1>👶 Déclaration Nounou</h1>
+
+    <!-- Cartouche repliable données administratives -->
+    <div class="collapsible" onclick="toggleAdmin()">
+        <span>📋 Données Administratives</span>
+        <span id="adminToggle">▼</span>
+    </div>
+    
+    <div id="adminContent" class="collapsible-content">
+        <div class="card">
+            <h2>👤 Employeur</h2>
+            <div class="grid">
+                <div class="form-group">
+                    <label>Nom</label>
+                    <input type="text" id="empNom" placeholder="Dupont">
+                </div>
+                <div class="form-group">
+                    <label>Prénom</label>
+                    <input type="text" id="empPrenom" placeholder="Jean">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Adresse</label>
+                <textarea id="empAdresse" placeholder="123 rue de la République&#10;75001 Paris"></textarea>
+            </div>
+            <div class="grid">
+                <div class="form-group">
+                    <label>Téléphone</label>
+                    <input type="tel" id="empTel" placeholder="06 12 34 56 78">
+                </div>
+                <div class="form-group">
+                    <label>N° Pajemploi</label>
+                    <input type="text" id="empPajemploi" placeholder="123456789">
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>👶 Assistante Maternelle (Salarié)</h2>
+            <div class="grid">
+                <div class="form-group">
+                    <label>Nom</label>
+                    <input type="text" id="salNom" placeholder="Martin">
+                </div>
+                <div class="form-group">
+                    <label>Prénom</label>
+                    <input type="text" id="salPrenom" placeholder="Marie">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Adresse</label>
+                <textarea id="salAdresse" placeholder="456 avenue des Fleurs&#10;75002 Paris"></textarea>
+            </div>
+            <div class="grid">
+                <div class="form-group">
+                    <label>Téléphone</label>
+                    <input type="tel" id="salTel" placeholder="06 98 76 54 32">
+                </div>
+                <div class="form-group">
+                    <label>N° Sécurité Sociale</label>
+                    <input type="text" id="salSecu" placeholder="2 89 12 75 123 456 12">
+                </div>
+            </div>
+            <div class="grid">
+                <div class="form-group">
+                    <label>Date d'embauche</label>
+                    <input type="date" id="salDateEmbauche">
+                </div>
+                <div class="form-group">
+                    <label>N° Agrément</label>
+                    <input type="text" id="salAgrement" placeholder="AG123456">
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>👦 Enfant Gardé</h2>
+            <div class="grid">
+                <div class="form-group">
+                    <label>Prénom de l'enfant</label>
+                    <input type="text" id="enfantPrenom" placeholder="Lucas">
+                </div>
+                <div class="form-group">
+                    <label>Date de naissance</label>
+                    <input type="date" id="enfantNaissance">
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="card">
         <h2>⚙️ Contrat (Paramètres Fixes)</h2>
@@ -246,6 +475,11 @@
     <div class="card">
         <h2>📅 Ce mois-ci (Variables)</h2>
 
+        <div class="form-group">
+            <label>Période de paie</label>
+            <input type="month" id="periodePaie">
+        </div>
+
         <div class="grid">
             <div class="form-group">
                 <label>Jours réels présence</label>
@@ -271,7 +505,12 @@
         </div>
     </div>
 
-    <button class="btn-calc" onclick="calculate()">CALCULER 🚀</button>
+    <button class="btn btn-calc" onclick="calculate()">CALCULER 🚀</button>
+    
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <button class="btn btn-secondary" onclick="exportData()">💾 Export JSON</button>
+        <button class="btn btn-success" onclick="generatePayslip()" id="btnPayslip" style="display:none;">📄 Fiche de Paie</button>
+    </div>
 
     <div id="results" class="result-box">
         <div class="res-header">📋 Détails pour Pajemploi</div>
@@ -338,7 +577,26 @@
     </div>
 </div>
 
+<!-- Template Fiche de Paie -->
+<div id="payslip" class="payslip"></div>
+
 <script>
+    let calculationResults = null;
+
+    // Toggle cartouche administratif
+    function toggleAdmin() {
+        const content = document.getElementById('adminContent');
+        const toggle = document.getElementById('adminToggle');
+        
+        if (content.classList.contains('active')) {
+            content.classList.remove('active');
+            toggle.textContent = '▼';
+        } else {
+            content.classList.add('active');
+            toggle.textContent = '▲';
+        }
+    }
+
     // Calcul du nombre de jours ouvrés dans le mois en cours
     function getWorkingDaysInCurrentMonth() {
         const now = new Date();
@@ -351,7 +609,6 @@
         let workingDays = 0;
         for (let day = firstDay; day <= lastDay; day.setDate(day.getDate() + 1)) {
             const dayOfWeek = day.getDay();
-            // Lundi(1) à Vendredi(5)
             if (dayOfWeek >= 1 && dayOfWeek <= 5) {
                 workingDays++;
             }
@@ -359,8 +616,37 @@
         return workingDays;
     }
 
+    // Initialisation période actuelle
+    function setCurrentPeriod() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        document.getElementById('periodePaie').value = `${year}-${month}`;
+    }
+
     window.onload = function() {
-        // Charger les paramètres sauvegardés
+        // Charger les données administratives
+        if(localStorage.getItem('nounou_admin')) {
+            const admin = JSON.parse(localStorage.getItem('nounou_admin'));
+            document.getElementById('empNom').value = admin.empNom || '';
+            document.getElementById('empPrenom').value = admin.empPrenom || '';
+            document.getElementById('empAdresse').value = admin.empAdresse || '';
+            document.getElementById('empTel').value = admin.empTel || '';
+            document.getElementById('empPajemploi').value = admin.empPajemploi || '';
+            
+            document.getElementById('salNom').value = admin.salNom || '';
+            document.getElementById('salPrenom').value = admin.salPrenom || '';
+            document.getElementById('salAdresse').value = admin.salAdresse || '';
+            document.getElementById('salTel').value = admin.salTel || '';
+            document.getElementById('salSecu').value = admin.salSecu || '';
+            document.getElementById('salDateEmbauche').value = admin.salDateEmbauche || '';
+            document.getElementById('salAgrement').value = admin.salAgrement || '';
+            
+            document.getElementById('enfantPrenom').value = admin.enfantPrenom || '';
+            document.getElementById('enfantNaissance').value = admin.enfantNaissance || '';
+        }
+        
+        // Charger les paramètres du contrat
         if(localStorage.getItem('nounou_cfg')) {
             const data = JSON.parse(localStorage.getItem('nounou_cfg'));
             document.getElementById('taux').value = data.taux || 4.00;
@@ -373,7 +659,8 @@
             document.getElementById('txIR').value = data.txIR || 4.00;
         }
         
-        // Pré-remplir les jours ouvrés du mois
+        // Période et jours ouvrés
+        setCurrentPeriod();
         const workingDays = getWorkingDaysInCurrentMonth();
         document.getElementById('jReels').value = workingDays;
         document.getElementById('nbRepas').value = workingDays;
@@ -394,6 +681,25 @@
     }
 
     function calculate() {
+        // Sauvegarde automatique données administratives
+        const adminData = {
+            empNom: document.getElementById('empNom').value,
+            empPrenom: document.getElementById('empPrenom').value,
+            empAdresse: document.getElementById('empAdresse').value,
+            empTel: document.getElementById('empTel').value,
+            empPajemploi: document.getElementById('empPajemploi').value,
+            salNom: document.getElementById('salNom').value,
+            salPrenom: document.getElementById('salPrenom').value,
+            salAdresse: document.getElementById('salAdresse').value,
+            salTel: document.getElementById('salTel').value,
+            salSecu: document.getElementById('salSecu').value,
+            salDateEmbauche: document.getElementById('salDateEmbauche').value,
+            salAgrement: document.getElementById('salAgrement').value,
+            enfantPrenom: document.getElementById('enfantPrenom').value,
+            enfantNaissance: document.getElementById('enfantNaissance').value
+        };
+        localStorage.setItem('nounou_admin', JSON.stringify(adminData));
+
         // Récupération des valeurs du contrat
         const taux = parseFloat(document.getElementById('taux').value) || 0;
         const semAn = parseFloat(document.getElementById('semAn').value) || 0;
@@ -409,8 +715,9 @@
         const nbRepas = parseFloat(document.getElementById('nbRepas').value) || 0;
         const hComp = parseFloat(document.getElementById('hComp').value) || 0;
         const mtCP = parseFloat(document.getElementById('mtCP').value) || 0;
+        const periodePaie = document.getElementById('periodePaie').value;
 
-        // Sauvegarde de la configuration
+        // Sauvegarde de la configuration contrat
         const config = {
             taux: document.getElementById('taux').value,
             semAn: document.getElementById('semAn').value,
@@ -426,7 +733,7 @@
         // Calculs pour Pajemploi
         const valHN = Math.round((hNormales * semAn) / 12);
         const valHS = Math.round((hSupp * semAn) / 12);
-        const valJA = jReels; // Jours réels du mois
+        const valJA = jReels;
         
         let valJCP = 0;
         if (semAn < 47 && mtCP > 0) {
@@ -448,6 +755,19 @@
         const valIR = nbRepas * txIR;
         const valTotal = valSal + valIE + valIR;
 
+        // Stockage des résultats pour export et fiche de paie
+        calculationResults = {
+            admin: adminData,
+            contrat: config,
+            periode: periodePaie,
+            variables: { jReels, nbRepas, hComp, mtCP },
+            resultats: {
+                valHN, valHS, valJA, valJCP, hComp,
+                salNormal, salSupp, salCompl, mtCP: mtCP,
+                valSal, valIE, valIR, valTotal
+            }
+        };
+
         // Affichage des résultats
         document.getElementById('outHN').innerText = valHN;
         document.getElementById('outHS').innerText = valHS;
@@ -466,7 +786,216 @@
         document.getElementById('outTotal').innerText = valTotal.toFixed(2).replace('.', ',') + " €";
 
         document.getElementById('results').style.display = 'block';
+        document.getElementById('btnPayslip').style.display = 'block';
         document.getElementById('results').scrollIntoView({behavior: 'smooth'});
+    }
+
+    // Export JSON
+    function exportData() {
+        if (!calculationResults) {
+            alert('Veuillez d\'abord effectuer un calcul');
+            return;
+        }
+
+        const dataStr = JSON.stringify(calculationResults, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(dataBlob);
+        link.download = `declaration-nounou-${calculationResults.periode}.json`;
+        link.click();
+    }
+
+    // Génération fiche de paie
+    function generatePayslip() {
+        if (!calculationResults) {
+            alert('Veuillez d\'abord effectuer un calcul');
+            return;
+        }
+
+        const data = calculationResults;
+        const admin = data.admin;
+        const res = data.resultats;
+        
+        // Formatage période
+        const [year, month] = data.periode.split('-');
+        const monthNames = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 
+                           'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre'];
+        const periodeText = `${monthNames[parseInt(month)-1]} ${year}`;
+        
+        // Calcul salaire brut (approximation: net / 0.7812)
+        const salaireBrut = (res.valSal / 0.7812).toFixed(2);
+        const cotisations = (parseFloat(salaireBrut) - res.valSal).toFixed(2);
+
+        const payslipHTML = `
+            <div style="max-width: 210mm; margin: 0 auto; padding: 15mm; font-family: Arial, sans-serif; font-size: 11pt;">
+                
+                <div style="display: flex; justify-content: space-between; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 3px solid #4f46e5;">
+                    <div style="flex: 1;">
+                        <strong style="font-size: 10pt; color: #6b7280;">EMPLOYEUR</strong><br>
+                        <strong>${admin.empPrenom} ${admin.empNom}</strong><br>
+                        ${admin.empAdresse.replace(/\n/g, '<br>')}<br>
+                        Tél: ${admin.empTel}<br>
+                        N° Pajemploi: ${admin.empPajemploi}
+                    </div>
+                    <div style="flex: 1; text-align: right;">
+                        <strong style="font-size: 10pt; color: #6b7280;">SALARIÉ</strong><br>
+                        <strong>${admin.salPrenom} ${admin.salNom}</strong><br>
+                        ${admin.salAdresse.replace(/\n/g, '<br>')}<br>
+                        N° Sécu: ${admin.salSecu}<br>
+                        N° Agrément: ${admin.salAgrement}
+                    </div>
+                </div>
+
+                <h1 style="text-align: center; font-size: 18pt; margin: 20px 0; color: #4f46e5;">
+                    BULLETIN DE SALAIRE
+                </h1>
+
+                <div style="background: #f3f4f6; padding: 10px; margin: 15px 0; border-left: 4px solid #4f46e5;">
+                    <strong>Période:</strong> ${periodeText} (du 01 au ${new Date(year, month, 0).getDate()})
+                    &nbsp;&nbsp;|&nbsp;&nbsp;
+                    <strong>Enfant gardé:</strong> ${admin.enfantPrenom}
+                    &nbsp;&nbsp;|&nbsp;&nbsp;
+                    <strong>Date d'embauche:</strong> ${admin.salDateEmbauche ? new Date(admin.salDateEmbauche).toLocaleDateString('fr-FR') : 'N/A'}
+                </div>
+
+                <div style="background: #f3f4f6; padding: 8px 12px; margin: 15px 0 5px 0; font-weight: bold; border-left: 4px solid #4f46e5;">
+                    RÉMUNÉRATION
+                </div>
+
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 10pt;">
+                    <thead>
+                        <tr style="background: #f3f4f6;">
+                            <th style="padding: 8px; text-align: left; border: 1px solid #d1d5db;">Désignation</th>
+                            <th style="padding: 8px; text-align: center; border: 1px solid #d1d5db;">Nombre</th>
+                            <th style="padding: 8px; text-align: right; border: 1px solid #d1d5db;">Taux/Base</th>
+                            <th style="padding: 8px; text-align: right; border: 1px solid #d1d5db;">Montant</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td style="padding: 6px; border: 1px solid #d1d5db;">Heures normales mensualisées</td>
+                            <td style="padding: 6px; text-align: center; border: 1px solid #d1d5db;">${res.valHN}h</td>
+                            <td style="padding: 6px; text-align: right; border: 1px solid #d1d5db;">${data.contrat.taux} €</td>
+                            <td style="padding: 6px; text-align: right; border: 1px solid #d1d5db; font-family: monospace;">${res.salNormal.toFixed(2)} €</td>
+                        </tr>
+                        ${res.salSupp > 0 ? `
+                        <tr>
+                            <td style="padding: 6px; border: 1px solid #d1d5db;">Heures majorées (${data.contrat.majSupp}%)</td>
+                            <td style="padding: 6px; text-align: center; border: 1px solid #d1d5db;">${res.valHS}h</td>
+                            <td style="padding: 6px; text-align: right; border: 1px solid #d1d5db;">${(parseFloat(data.contrat.taux) * (1 + parseFloat(data.contrat.majSupp)/100)).toFixed(2)} €</td>
+                            <td style="padding: 6px; text-align: right; border: 1px solid #d1d5db; font-family: monospace;">${res.salSupp.toFixed(2)} €</td>
+                        </tr>
+                        ` : ''}
+                        ${res.salCompl > 0 ? `
+                        <tr>
+                            <td style="padding: 6px; border: 1px solid #d1d5db;">Heures complémentaires (${data.contrat.majCompl}%)</td>
+                            <td style="padding: 6px; text-align: center; border: 1px solid #d1d5db;">${data.variables.hComp}h</td>
+                            <td style="padding: 6px; text-align: right; border: 1px solid #d1d5db;">${(parseFloat(data.contrat.taux) * (1 + parseFloat(data.contrat.majCompl)/100)).toFixed(2)} €</td>
+                            <td style="padding: 6px; text-align: right; border: 1px solid #d1d5db; font-family: monospace;">${res.salCompl.toFixed(2)} €</td>
+                        </tr>
+                        ` : ''}
+                        ${res.mtCP > 0 ? `
+                        <tr>
+                            <td style="padding: 6px; border: 1px solid #d1d5db;">Congés payés</td>
+                            <td style="padding: 6px; text-align: center; border: 1px solid #d1d5db;">${res.valJCP}j</td>
+                            <td style="padding: 6px; text-align: right; border: 1px solid #d1d5db;">-</td>
+                            <td style="padding: 6px; text-align: right; border: 1px solid #d1d5db; font-family: monospace;">${res.mtCP.toFixed(2)} €</td>
+                        </tr>
+                        ` : ''}
+                        <tr style="background: #eef2ff; font-weight: bold;">
+                            <td colspan="3" style="padding: 8px; border: 1px solid #d1d5db;">SALAIRE BRUT</td>
+                            <td style="padding: 8px; text-align: right; border: 1px solid #d1d5db; font-family: monospace;">${salaireBrut} €</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div style="background: #f3f4f6; padding: 8px 12px; margin: 15px 0 5px 0; font-weight: bold; border-left: 4px solid #4f46e5;">
+                    COTISATIONS SOCIALES
+                </div>
+
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 10pt;">
+                    <tbody>
+                        <tr>
+                            <td style="padding: 6px; border: 1px solid #d1d5db;">Cotisations sociales (CSG, CRDS, retraite, prévoyance)</td>
+                            <td style="padding: 6px; text-align: right; border: 1px solid #d1d5db; font-family: monospace;">- ${cotisations} €</td>
+                        </tr>
+                        <tr style="background: #eef2ff; font-weight: bold;">
+                            <td style="padding: 8px; border: 1px solid #d1d5db;">SALAIRE NET</td>
+                            <td style="padding: 8px; text-align: right; border: 1px solid #d1d5db; font-family: monospace;">${res.valSal.toFixed(2)} €</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div style="background: #f3f4f6; padding: 8px 12px; margin: 15px 0 5px 0; font-weight: bold; border-left: 4px solid #4f46e5;">
+                    INDEMNITÉS
+                </div>
+
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 10pt;">
+                    <tbody>
+                        <tr>
+                            <td style="padding: 6px; border: 1px solid #d1d5db;">Indemnité d'entretien</td>
+                            <td style="padding: 6px; text-align: center; border: 1px solid #d1d5db;">${data.variables.jReels} jours × ${data.contrat.txIE} €</td>
+                            <td style="padding: 6px; text-align: right; border: 1px solid #d1d5db; font-family: monospace;">${res.valIE.toFixed(2)} €</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 6px; border: 1px solid #d1d5db;">Indemnité de repas</td>
+                            <td style="padding: 6px; text-align: center; border: 1px solid #d1d5db;">${data.variables.nbRepas} repas × ${data.contrat.txIR} €</td>
+                            <td style="padding: 6px; text-align: right; border: 1px solid #d1d5db; font-family: monospace;">${res.valIR.toFixed(2)} €</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div style="background: #4f46e5; color: white; padding: 15px; text-align: center; font-size: 14pt; font-weight: bold; margin: 20px 0;">
+                    NET À PAYER : ${res.valTotal.toFixed(2).replace('.', ',')} €
+                </div>
+
+                <div style="margin-top: 30px; padding-top: 15px; border-top: 2px solid #d1d5db; font-size: 9pt; color: #6b7280;">
+                    <p><strong>Convention collective:</strong> Assistants maternels du particulier employeur</p>
+                    <p><strong>Jours d'activité:</strong> ${res.valJA} jours | <strong>Heures mensuelles:</strong> ${res.valHN + res.valHS}h</p>
+                    <p style="margin-top: 15px;"><em>Document généré le ${new Date().toLocaleDateString('fr-FR')} - À conserver sans limitation de durée</em></p>
+                </div>
+
+            </div>
+        `;
+
+        // Ouvrir dans nouvelle fenêtre pour impression
+        const printWindow = window.open('', '', 'width=800,height=600');
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Fiche de Paie - ${periodeText}</title>
+                <style>
+                    @media print {
+                        @page {
+                            size: A4;
+                            margin: 0;
+                        }
+                        body {
+                            margin: 0;
+                            padding: 0;
+                        }
+                    }
+                    body {
+                        margin: 0;
+                        padding: 0;
+                        background: white;
+                    }
+                </style>
+            </head>
+            <body>
+                ${payslipHTML}
+            </body>
+            </html>
+        `);
+        printWindow.document.close();
+        
+        // Auto-print après chargement
+        setTimeout(() => {
+            printWindow.print();
+        }, 500);
     }
 </script>
 
