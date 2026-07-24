@@ -104,14 +104,41 @@ Le plus favorable est retenu automatiquement. Le paiement mensuel par douzième 
 Pour un CDI rompu par retrait de l’enfant, l’indemnité de rupture est calculée à partir de neuf mois d’ancienneté :
 
 ```text
-total des salaires bruts historisés ÷ 80
+(
+  salaires bruts reçus pendant toute la durée du contrat,
+  mois de fin compris
+  + éléments de rupture ayant le caractère de salaire
+) ÷ 80
 ```
 
-Les indemnités d’entretien et de repas sont exclues. Le contrat ne demande plus de taux brut : il est estimé automatiquement depuis le taux net avec le rapport de cotisations 2026. Un salaire brut officiel recopié après chaque déclaration reste prioritaire pour figer le calcul France Travail et le 1/80 exact.
+Les congés payés, la régularisation de salaire et l’éventuelle indemnité compensatrice de préavis sont soumis à cotisations et sont donc ajoutés à la base brute. Les indemnités d’entretien, de repas, kilométriques et l’indemnité de rupture elle-même sont exclues.
+
+Cette règle explique le résultat NounouTop transmis pour juillet 2026 :
+
+```text
+salaires bruts de septembre 2025 à juillet 2026 = 13 384,30 €
+indemnité compensatrice de congés payés brute    =    406,35 €
+base du 1/80                                     = 13 790,65 €
+indemnité de rupture                             =    172,38 €
+```
+
+Il ne s’agit donc ni des onze mois précédant la fin, ni des seuls mois civils complets. Le contrat ne demande plus de taux brut : il est estimé automatiquement depuis le taux net avec le rapport de cotisations 2026. Un salaire brut officiel recopié après chaque déclaration reste prioritaire pour figer le calcul France Travail et le 1/80 exact.
 
 Pour une fin de CDD, l’outil affiche 10 % de la rémunération brute historisée. Les cas d’exclusion restent à vérifier.
 
 En accueil sur 46 semaines ou moins, la régularisation compare automatiquement le salaire dû pour les semaines réellement accueillies aux mensualisations déjà versées. Seule une différence favorable à la salariée est ajoutée.
+
+La régularisation rémunère aussi du temps qui n’avait pas encore été déclaré. NounouCalc calcule donc deux écarts parallèles sur les déclarations confirmées :
+
+```text
+heures de régularisation =
+  montant net de la régularisation ÷ taux horaire net normal
+
+jours de régularisation =
+  total des jours réels − total des jours mensualisés déjà déclarés
+```
+
+La conversion monétaire des heures est celle illustrée par NounouTop : une régularisation nette de 544,55 € à 4,60 € net par heure représente 118,38 heures à ajouter. Ces valeurs positives sont ajoutées respectivement aux heures normales et aux jours mensualisés du dernier mois. Le résultat des jours est plafonné à 31, maximum accepté par Pajemploi. L’écran expose le détail « mensualisation + régularisation » pour éviter de confondre cette valeur déclarative avec les seuls jours réellement gardés du dernier mois.
 
 La fin de contrat est intégrée à la déclaration du dernier mois. Les champs proposés correspondent à la rubrique Pajemploi : date et motif de fin, prime de précarité, indemnité compensatrice de congés payés et jours soldés, indemnité compensatrice de préavis, indemnité de rupture et régularisation de salaire.
 
@@ -148,7 +175,7 @@ Le bulletin de salaire est produit par l’Urssaf service Pajemploi. NounouCalc 
 
 Pour 2026, l’estimation du CMG utilise :
 
-- les ressources annuelles CAF N−2, divisées par douze et bornées entre 814,02 € et 8 500 € ;
+- les ressources annuelles CAF N−2, obligatoires pour produire une estimation, divisées par douze et bornées entre 814,02 € et 8 500 € ;
 - le nombre d’enfants à charge ;
 - le taux d’effort correspondant ;
 - le coût net de la garde, incluant salaire, entretien et repas ;
@@ -156,6 +183,8 @@ Pour 2026, l’estimation du CMG utilise :
 - le plafond horaire assistant maternel de 8,09 €.
 
 Le montant officiel calculé par Pajemploi+ peut être enregistré après validation et remplace alors l’estimation dans le dossier employeur.
+
+Une ressource vide ou égale à zéro est traitée comme une information manquante. NounouCalc affiche alors « À renseigner » et ne substitue plus silencieusement la borne minimale de 814,02 €, qui produisait un CMG artificiellement élevé et un reste à charge trompeur. Le reste à charge estimé est calculé à partir du total réellement versé du mois, y compris les frais non couverts, diminué du CMG estimé.
 
 Sources complémentaires :
 

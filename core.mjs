@@ -1,4 +1,4 @@
-export const DATA_VERSION = 3;
+export const DATA_VERSION = 4;
 
 export function number(value, fallback = 0) {
   const parsed = Number.parseFloat(value);
@@ -166,6 +166,8 @@ export function calculateDeclaration(contract, input) {
   const noticeCompensationNet = input.isEndContract === "yes" ? Math.max(0, number(input.noticeCompensationNet)) : 0;
   const precariousnessNet = input.isEndContract === "yes" ? Math.max(0, number(input.precariousnessNet)) : 0;
   const regularizationNet = input.isEndContract === "yes" ? Math.max(0, number(input.endingRegularizationNet)) : 0;
+  const regularizationHours = input.isEndContract === "yes" ? Math.max(0, number(input.endingRegularizationHours)) : 0;
+  const regularizationDays = input.isEndContract === "yes" ? Math.max(0, number(input.endingRegularizationDays)) : 0;
   const ruptureIndemnityNet = input.isEndContract === "yes" ? Math.max(0, number(input.ruptureIndemnityNet)) : 0;
   const otherSalaryNet = number(input.otherSalaryNet);
   const deduction = Math.max(0, number(input.absenceDeductionNet));
@@ -209,12 +211,15 @@ export function calculateDeclaration(contract, input) {
         );
   const acquiredRaw = accrualWeeks * 2.5 / 4;
   const cpHours = netRate > 0 ? (cpPaidNet + endingCpNet + noticeCompensationNet) / netRate : 0;
-  const normalHoursWithPaidLeave = basis.normalHoursExact + cpHours;
+  const normalHoursWithPaidLeave = basis.normalHoursExact + cpHours + regularizationHours;
+  const declaredDaysWithRegularization = input.isEndContract === "yes"
+    ? Math.min(31, Math.ceil(basis.daysExact + regularizationDays - 1e-9))
+    : basis.declaredDays;
 
   return {
     basis,
     declared: {
-      days: basis.declaredDays,
+      days: declaredDaysWithRegularization,
       normalHours: Math.round(normalHoursWithPaidLeave),
       complementaryHours: round(complementaryHours, 2),
       majorHours: round(basis.declaredContractMajorHours + extraMajorHours, 2),
@@ -251,6 +256,12 @@ export function calculateDeclaration(contract, input) {
       hours: round(cpHours, 4),
       normalHoursWithPaidLeave: round(normalHoursWithPaidLeave, 4)
     },
+    regularizationConversion: {
+      hours: round(regularizationHours, 4),
+      days: round(regularizationDays, 4),
+      daysBeforeCap: round(basis.daysExact + regularizationDays, 4),
+      cappedAt31Days: basis.daysExact + regularizationDays > 31
+    },
     additional: {
       specificHours: input.specificHours === "yes",
       over24Hours: input.over24Hours === "yes",
@@ -281,7 +292,10 @@ const CMG_EFFORT_RATES = [0.000619, 0.000516, 0.000413, 0.000310, 0.000310, 0.00
 
 export function calculateCmg(cmgProfile, declaration) {
   const annualResources = Math.max(0, number(cmgProfile.annualResourcesN2));
-  const monthlyResources = Math.min(8500, Math.max(814.02, annualResources / 12));
+  const configured = annualResources > 0;
+  const monthlyResources = configured
+    ? Math.min(8500, Math.max(814.02, annualResources / 12))
+    : 0;
   const children = Math.max(1, Math.round(number(cmgProfile.dependentChildren, 1)));
   const aeehShift = cmgProfile.aeeh === "yes" ? 1 : 0;
   const rateIndex = Math.min(CMG_EFFORT_RATES.length - 1, children - 1 + aeehShift);
@@ -306,10 +320,18 @@ export function calculateCmg(cmgProfile, declaration) {
   const retainedCost = retainedHourlyCost * hours;
   const familyParticipation = hours * monthlyResources * effortRate *
     (referenceHourlyCost > 0 ? retainedHourlyCost / referenceHourlyCost : 0);
-  const estimatedCmg = Math.max(0, Math.min(retainedCost, retainedCost - familyParticipation));
-  const estimatedOutOfPocket = Math.max(0, eligibleCost - estimatedCmg);
+  const estimatedCmg = configured
+    ? Math.max(0, Math.min(retainedCost, retainedCost - familyParticipation))
+    : null;
+  const chargedCost = declaration.totalToPay == null
+    ? eligibleCost
+    : Math.max(0, number(declaration.totalToPay));
+  const estimatedOutOfPocket = configured
+    ? Math.max(0, chargedCost - estimatedCmg)
+    : null;
 
   return {
+    configured,
     annualResources: round(annualResources),
     monthlyResources: round(monthlyResources),
     dependentChildren: children,
@@ -320,8 +342,9 @@ export function calculateCmg(cmgProfile, declaration) {
     retainedHourlyCost: round(retainedHourlyCost, 4),
     referenceHourlyCost,
     hourlyCap,
-    estimatedCmg: round(estimatedCmg),
-    estimatedOutOfPocket: round(estimatedOutOfPocket),
+    estimatedCmg: configured ? round(estimatedCmg) : null,
+    estimatedOutOfPocket: configured ? round(estimatedOutOfPocket) : null,
+    estimatedAidRate: configured && chargedCost > 0 ? round(estimatedCmg / chargedCost * 100, 1) : null,
     overCapCost: round(Math.max(0, eligibleCost - retainedCost))
   };
 }
@@ -484,22 +507,18 @@ export function calculateEnd(contract, declarations, input) {
     const period = recordPeriod(item);
     return period && (!endDate || `${period}-01` <= endDate);
   });
-  const grossTotal = round(contractMonths.reduce((sum, period) => {
+  const grossSalaryHistory = round(contractMonths.reduce((sum, period) => {
     const recordedGross = number(recordsByPeriod[period]?.results?.salary?.grossForHistory);
     return sum + (recordedGross || estimatedMonthlyGross);
   }, 0));
   const seniorityMonths = completedMonths(startDate, endDate);
   const reason = input.reason;
   const ruptureEligible = reason === "death" || (reason === "employer" && seniorityMonths >= 9);
-  const suggestedRuptureIndemnity = ruptureEligible ? round(grossTotal / 80) : 0;
   const grossToNetRatio = grossRate > 0
     ? Math.min(1, number(contract.netHourlyRate) / grossRate)
     : 1;
-  const suggestedCddIndemnityGross = reason === "cdd" ? round(grossTotal * 0.10) : 0;
+  const suggestedCddIndemnityGross = reason === "cdd" ? round(grossSalaryHistory * 0.10) : 0;
   const suggestedCddIndemnity = round(suggestedCddIndemnityGross * grossToNetRatio);
-  const ruptureIndemnity = input.ruptureIndemnityNet === "" || input.ruptureIndemnityNet == null
-    ? suggestedRuptureIndemnity
-    : Math.max(0, number(input.ruptureIndemnityNet));
   const cddIndemnity = input.precariousnessNet === "" || input.precariousnessNet == null
     ? suggestedCddIndemnity
     : Math.max(0, number(input.precariousnessNet));
@@ -518,6 +537,9 @@ export function calculateEnd(contract, declarations, input) {
     const salary = record.results?.salary || {};
     return sum + number(salary.normalNet) + number(salary.contractMajorNet) - number(salary.absenceDeductionNet);
   }, 0));
+  const automaticRegularizationDays = round(Math.max(0, records.reduce((sum, record) =>
+    sum + number(record.input?.actualDays) - basis.daysExact
+  , 0)), 2);
   const regularizationDue = input.regularizationDueNet === "" || input.regularizationDueNet == null
     ? automaticRegularizationDue
     : number(input.regularizationDueNet);
@@ -525,6 +547,10 @@ export function calculateEnd(contract, declarations, input) {
     ? automaticRegularizationPaid
     : number(input.regularizationPaidNet);
   const regularization = round(Math.max(0, regularizationDue - regularizationPaid));
+  const automaticRegularizationHours = round(
+    number(contract.netHourlyRate) > 0 ? regularization / number(contract.netHourlyRate) : 0,
+    2
+  );
   const leaveBalance = globalLeaveBalance(contract, declarations, endDate);
   const suggestedCpMaintenanceNet = round(leaveBalance.remainingDays / 6 * weeklyNet);
   const grossByReference = {};
@@ -550,6 +576,28 @@ export function calculateEnd(contract, declarations, input) {
     : round(Math.max(0, number(input.endingCpNet)));
   const endingPeriod = endDate?.slice(0, 7);
   const endingRecord = recordsByPeriod[endingPeriod];
+  const explicitEndingCpGross = number(endingRecord?.input?.endingCpGross);
+  const cpCompensationGrossForRupture = round(
+    explicitEndingCpGross ||
+    ((input.endingCpNet !== "" && input.endingCpNet != null && grossToNetRatio > 0)
+      ? cpCompensation / grossToNetRatio
+      : suggestedCpCompensationGross)
+  );
+  const regularizationGrossForRupture = round(grossToNetRatio > 0 ? regularization / grossToNetRatio : regularization);
+  const noticeCompensationNetForRupture = number(endingRecord?.results?.ending?.noticeCompensationNet);
+  const noticeCompensationGrossForRupture = round(
+    grossToNetRatio > 0 ? noticeCompensationNetForRupture / grossToNetRatio : noticeCompensationNetForRupture
+  );
+  const ruptureSalaryElementsGross = round(
+    cpCompensationGrossForRupture +
+    regularizationGrossForRupture +
+    noticeCompensationGrossForRupture
+  );
+  const ruptureGrossBase = round(grossSalaryHistory + ruptureSalaryElementsGross);
+  const suggestedRuptureIndemnity = ruptureEligible ? round(ruptureGrossBase / 80) : 0;
+  const ruptureIndemnity = input.ruptureIndemnityNet === "" || input.ruptureIndemnityNet == null
+    ? suggestedRuptureIndemnity
+    : Math.max(0, number(input.ruptureIndemnityNet));
   const automaticLastSalary = endingRecord ? round(
     number(endingRecord.results?.totalToPay) -
     number(endingRecord.results?.ending?.total)
@@ -562,7 +610,13 @@ export function calculateEnd(contract, declarations, input) {
   const total = round(ruptureIndemnity + cddIndemnity + regularization + cpCompensation + lastSalary);
 
   return {
-    grossTotal,
+    grossTotal: ruptureGrossBase,
+    grossSalaryHistory,
+    ruptureSalaryElementsGross,
+    ruptureGrossBase,
+    cpCompensationGrossForRupture,
+    regularizationGrossForRupture,
+    noticeCompensationGrossForRupture,
     seniorityMonths,
     ruptureEligible,
     ruptureIndemnity,
@@ -582,6 +636,8 @@ export function calculateEnd(contract, declarations, input) {
     regularizationPaid,
     automaticRegularizationDue,
     automaticRegularizationPaid,
+    automaticRegularizationHours,
+    automaticRegularizationDays,
     lastSalary,
     leaveBalance,
     total,
@@ -638,7 +694,7 @@ export function defaultState() {
       cpPaymentMonth: 6
     },
     cmgProfile: {
-      annualResourcesN2: 0,
+      annualResourcesN2: "",
       dependentChildren: 1,
       aeeh: "no"
     },

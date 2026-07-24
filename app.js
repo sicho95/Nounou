@@ -84,6 +84,8 @@ const monthlyFields = {
   noticeCompensationNet: "noticeCompensationNet",
   ruptureIndemnityNet: "ruptureIndemnityNet",
   endingRegularizationNet: "endingRegularizationNet",
+  endingRegularizationHours: "endingRegularizationHours",
+  endingRegularizationDays: "endingRegularizationDays",
   endingCpGross: "endingCpGross",
   precariousnessGross: "precariousnessGross",
   legalRuptureAmount: "legalRuptureAmount",
@@ -97,12 +99,13 @@ const monthlyFields = {
 let state = loadState();
 let currentRecord = null;
 let currentSimulationId = null;
+let contractDirty = false;
 
 function loadState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (parsed?.version === DATA_VERSION) return parsed;
-    if (parsed?.version === 2) return upgradeV2(parsed);
+    if ([2, 3].includes(parsed?.version)) return upgradeV2(parsed);
   } catch (error) {
     console.warn("Sauvegarde illisible", error);
   }
@@ -195,13 +198,15 @@ function upgradeV2(oldState) {
     version: DATA_VERSION,
     cmgProfile: oldState.cmgProfile || defaultState().cmgProfile,
     preferences: oldState.preferences || defaultState().preferences,
-    declarations: {}
+    declarations: oldState.version === 2 ? {} : clone(oldState.declarations || {})
   };
-  for (const [period, record] of Object.entries(oldState.declarations || {})) {
-    const id = makeId();
-    upgraded.declarations[period] = { simulations: [{ ...record, id, status: "simulation" }], officialId: null };
+  if (oldState.version === 2) {
+    for (const [period, record] of Object.entries(oldState.declarations || {})) {
+      const id = makeId();
+      upgraded.declarations[period] = { simulations: [{ ...record, id, status: "simulation" }], officialId: null };
+    }
   }
-  return upgraded;
+  return recalculateImportedState(upgraded);
 }
 
 function migrateLegacy() {
@@ -331,14 +336,16 @@ function fillContract() {
   updateContractPreview();
 }
 
-function saveContract(showMessage = true) {
+function saveContract(showMessage = true, refreshPreview = true) {
   refreshEstimatedGrossRate();
   state.contract = { ...state.contract, ...readValues(contractIds) };
   state.admin = { ...state.admin, ...readValues(adminIds) };
   state.cmgProfile = { ...state.cmgProfile, ...readValues(cmgIds) };
+  contractDirty = false;
   saveState();
   updateContractPreview();
   updatePeriodHints();
+  if (refreshPreview) refreshCurrentMonthPreview();
   if (showMessage) toast("Contrat enregistré.");
 }
 
@@ -397,6 +404,8 @@ function defaultMonthly(period) {
     noticeCompensationNet: 0,
     ruptureIndemnityNet: "",
     endingRegularizationNet: 0,
+    endingRegularizationHours: 0,
+    endingRegularizationDays: 0,
     endingCpGross: "",
     precariousnessGross: "",
     legalRuptureAmount: "",
@@ -426,9 +435,15 @@ function officialDeclarations() {
 
 function loadMonth(period, simulationId = "") {
   const bucket = monthBucket(period);
-  const existing = bucket?.simulations?.find(item => item.id === simulationId) ||
+  let existing = bucket?.simulations?.find(item => item.id === simulationId) ||
     bucket?.simulations?.find(item => item.id === bucket.officialId) ||
     bucket?.simulations?.[bucket.simulations.length - 1];
+  if (existing && existing.id !== bucket?.officialId) {
+    existing = { ...existing, results: calculateRecordResults(existing.input), recalculatedAt: new Date().toISOString() };
+    const index = bucket.simulations.findIndex(item => item.id === existing.id);
+    if (index >= 0) bucket.simulations[index] = existing;
+    saveState();
+  }
   const input = existing?.input || defaultMonthly(period);
   fillCpReferenceOptions(period, input.cpReferenceKey);
   setMonthlyValues({ ...defaultMonthly(period), ...input });
@@ -466,9 +481,43 @@ function newSimulation() {
   toast("Variante dupliquée. Modifiez seulement les valeurs à comparer.");
 }
 
-function buildDraftRecord(input = monthlyInput()) {
+function calculateRecordResults(input) {
   const results = calculateDeclaration(state.contract, input);
-  return { period: input.period, input, results };
+  results.cmg = calculateCmg(state.cmgProfile, results);
+  results.cmg.officialCmg = input.officialCmg === "" || input.officialCmg == null
+    ? null
+    : number(input.officialCmg);
+  results.cmg.officialPajemploiDebit = input.officialPajemploiDebit === "" || input.officialPajemploiDebit == null
+    ? null
+    : number(input.officialPajemploiDebit);
+  return results;
+}
+
+function buildDraftRecord(input = monthlyInput()) {
+  return { period: input.period, input, results: calculateRecordResults(input) };
+}
+
+function refreshCurrentMonthPreview() {
+  if (!currentRecord || !$("period").value) return;
+  const input = monthlyInput();
+  currentRecord = {
+    ...currentRecord,
+    input,
+    results: calculateRecordResults(input)
+  };
+  const bucket = monthBucket(input.period);
+  if (bucket && bucket.officialId !== currentRecord.id) {
+    const index = bucket.simulations.findIndex(item => item.id === currentRecord.id);
+    if (index >= 0) {
+      currentRecord.recalculatedAt = new Date().toISOString();
+      bucket.simulations[index] = currentRecord;
+      saveState();
+    }
+  }
+  renderResults(currentRecord);
+  $("monthStatus").textContent = bucket?.officialId === currentRecord.id
+    ? "Déclaration officielle conservée • créez une variante pour appliquer le nouveau contrat"
+    : "Simulation recalculée avec le contrat modifié";
 }
 
 function updateAutomaticLeaveInfo() {
@@ -501,7 +550,7 @@ function updateMonthlyEndVisibility(recalculate = true) {
 
 function calculateMonthlyEndSuggestions() {
   if ($("isEndContract").value !== "yes") return;
-  saveContract(false);
+  saveContract(false, false);
   const input = monthlyInput();
   if (!input.endDate) input.endDate = lastDay(input.period);
   const draft = buildDraftRecord({
@@ -529,6 +578,8 @@ function calculateMonthlyEndSuggestions() {
   setValue("endingCpDays", result.leaveBalance.remainingDays);
   setValue("ruptureIndemnityNet", result.suggestedRuptureIndemnity);
   setValue("endingRegularizationNet", result.regularization);
+  setValue("endingRegularizationHours", result.automaticRegularizationHours);
+  setValue("endingRegularizationDays", result.automaticRegularizationDays);
   setValue("endingCpGross", result.suggestedCpCompensationGross);
   setValue("precariousnessGross", result.suggestedCddIndemnityGross);
   if (!$("legalRuptureAmount").value) setValue("legalRuptureAmount", result.suggestedRuptureIndemnity);
@@ -536,7 +587,8 @@ function calculateMonthlyEndSuggestions() {
     `<strong>Proposition automatique :</strong> ${result.leaveBalance.remainingDays.toLocaleString("fr-FR")} jours de congés à solder, ` +
     `${money(result.suggestedCpCompensation)} de congés ` +
     `(maintien ${money(result.suggestedCpMaintenanceNet)} / dixième ${money(result.suggestedCpTenthNet)}), ` +
-    `${money(result.suggestedRuptureIndemnity)} d’indemnité de rupture` +
+    `${money(result.suggestedRuptureIndemnity)} d’indemnité de rupture, ` +
+    `${result.automaticRegularizationHours.toLocaleString("fr-FR")} h et ${result.automaticRegularizationDays.toLocaleString("fr-FR")} jours de régularisation à ajouter aux cases Pajemploi` +
     (result.estimatedMonthsCount ? ` • ${result.estimatedMonthsCount} mois antérieurs estimés faute de déclaration confirmée.` : ".");
   updateAutomaticLeaveInfo();
 }
@@ -550,7 +602,7 @@ function fillCpReferenceOptions(period, selectedKey = "") {
 }
 
 function calculateAndSave() {
-  saveContract(false);
+  saveContract(false, false);
   const input = monthlyInput();
   if (!input.period) return alert("Choisissez une période.");
   if (state.contract.startDate && `${input.period}-01` < state.contract.startDate.slice(0, 7) + "-01") {
@@ -559,10 +611,7 @@ function calculateAndSave() {
   if (number(state.contract.weeksPerYear) > 52 || number(state.contract.weeksPerYear) === 47) {
     return alert("Choisissez 52 semaines ou 46 semaines et moins, conformément aux catégories conventionnelles.");
   }
-  const results = calculateDeclaration(state.contract, input);
-  results.cmg = calculateCmg(state.cmgProfile, results);
-  results.cmg.officialCmg = number(input.officialCmg);
-  results.cmg.officialPajemploiDebit = number(input.officialPajemploiDebit);
+  const results = calculateRecordResults(input);
   const bucket = monthBucket(input.period, true);
   const id = currentSimulationId || makeId();
   const isOfficial = bucket.officialId === id;
@@ -596,25 +645,40 @@ function renderResults(record) {
   const { input, results } = record;
   const { basis, declared, salary, expenses } = results;
   $("outDeclaredDays").textContent = declared.days;
-  $("outExactDays").textContent = `${round(basis.daysExact, 2)} jours contractuels avant arrondi déclaratif`;
+  $("outExactDays").textContent = results.regularizationConversion?.days
+    ? `${round(basis.daysExact, 2)} jours mensualisés + ${results.regularizationConversion.days.toLocaleString("fr-FR")} jours de régularisation` +
+      (results.regularizationConversion.cappedAt31Days ? " • plafond Pajemploi de 31 jours appliqué" : "")
+    : `${round(basis.daysExact, 2)} jours contractuels avant arrondi déclaratif`;
   $("outNormalHours").textContent = `${declared.normalHours} h`;
-  $("outExactNormalHours").textContent = results.paidLeaveConversion.hours
-    ? `${round(basis.normalHoursExact, 2)} h mensualisées + ${round(results.paidLeaveConversion.hours, 2)} h équivalentes de congés`
-    : `${round(basis.normalHoursExact, 2)} h contractuelles avant arrondi`;
+  const normalHourDetails = [`${round(basis.normalHoursExact, 2)} h mensualisées`];
+  if (results.paidLeaveConversion.hours) {
+    normalHourDetails.push(`${round(results.paidLeaveConversion.hours, 2)} h équivalentes de congés/préavis`);
+  }
+  if (results.regularizationConversion?.hours) {
+    normalHourDetails.push(`${round(results.regularizationConversion.hours, 2)} h de régularisation`);
+  }
+  $("outExactNormalHours").textContent = normalHourDetails.join(" + ");
   $("outComplementaryHours").textContent = `${declared.complementaryHours} h`;
   $("outMajorHours").textContent = `${declared.majorHours} h`;
   $("outMajorBreakdown").textContent = `${basis.declaredContractMajorHours} h mensualisées + ${round(number(input.extraMajorHours), 2)} h en plus`;
   $("outCpDays").textContent = declared.cpDays;
   $("outNetSalary").textContent = money(declared.netSalary);
-  const officialCmg = number(results.cmg?.officialCmg);
-  const officialDebit = number(results.cmg?.officialPajemploiDebit);
-  $("outCmgLabel").textContent = officialCmg ? "CMG rémunération officiel" : "CMG rémunération estimé";
-  $("outCmg").textContent = money(officialCmg || results.cmg?.estimatedCmg);
-  $("outFamilyCost").textContent = money(officialDebit || results.cmg?.estimatedOutOfPocket);
+  const hasOfficialCmg = results.cmg?.officialCmg != null;
+  const hasOfficialDebit = results.cmg?.officialPajemploiDebit != null;
+  const cmgConfigured = Boolean(results.cmg?.configured);
+  $("outCmgLabel").textContent = hasOfficialCmg ? "CMG rémunération officiel" : "CMG rémunération estimé";
+  $("outCmg").textContent = hasOfficialCmg
+    ? money(results.cmg.officialCmg)
+    : (cmgConfigured ? money(results.cmg.estimatedCmg) : "À renseigner");
+  $("outFamilyCost").textContent = hasOfficialDebit
+    ? money(results.cmg.officialPajemploiDebit)
+    : (cmgConfigured ? money(results.cmg.estimatedOutOfPocket) : "À renseigner");
   $("outCmgDetail").textContent = results.cmg
-    ? (officialDebit
+    ? (hasOfficialDebit
       ? "Montant réel prélevé par Pajemploi+"
-      : `${results.cmg.hours.toLocaleString("fr-FR")} h prises en compte • tarif réel ${money(results.cmg.actualHourlyCost)}/h`)
+      : cmgConfigured
+        ? `${results.cmg.estimatedAidRate.toLocaleString("fr-FR")} % d’aide estimée • ${results.cmg.hours.toLocaleString("fr-FR")} h prises en compte`
+        : "Renseignez vos ressources CAF 2024 dans Contrat pour obtenir une estimation")
     : "Renseignez les ressources CAF dans le contrat";
   $("outMaintenance").textContent = money(expenses.maintenance);
   $("outMeals").textContent = money(expenses.meals);
@@ -807,7 +871,7 @@ function deleteSimulation(period, id) {
 }
 
 function calculateEnding() {
-  saveContract(false);
+  saveContract(false, false);
   const input = {
     endDate: $("endDate").value,
     reason: $("endReason").value,
@@ -839,10 +903,13 @@ function calculateEnding() {
   const result = calculateEnd(state.contract, declarations, input);
   $("endBreakdown").innerHTML = [
     `<div class="end-row"><span>Ancienneté retenue</span><strong>${result.seniorityMonths} mois</strong></div>`,
-    `<div class="end-row"><span>Salaires bruts historisés (${result.recordsCount} mois)</span><strong>${money(result.grossTotal)}</strong></div>`,
-    `<div class="end-row"><span>Indemnité de rupture CDI (1/80 du brut)</span><strong>${money(result.ruptureIndemnity)}</strong></div>`,
+    `<div class="end-row"><span>Salaires bruts sur toute la durée du contrat</span><strong>${money(result.grossSalaryHistory)}</strong></div>`,
+    `<div class="end-row"><span>Éléments bruts de rupture soumis à cotisations<small>congés ${money(result.cpCompensationGrossForRupture)} • régularisation ${money(result.regularizationGrossForRupture)} • préavis ${money(result.noticeCompensationGrossForRupture)}</small></span><strong>${money(result.ruptureSalaryElementsGross)}</strong></div>`,
+    `<div class="end-row"><span>Base complète du 1/80</span><strong>${money(result.ruptureGrossBase)}</strong></div>`,
+    `<div class="end-row"><span>Indemnité de rupture CDI (base ÷ 80)</span><strong>${money(result.ruptureIndemnity)}</strong></div>`,
     result.cddIndemnity ? `<div class="end-row"><span>Indemnité de fin de CDD (10 %)</span><strong>${money(result.cddIndemnity)}</strong></div>` : "",
     `<div class="end-row"><span>Régularisation positive automatique<small>${money(result.regularizationDue)} dû au réel − ${money(result.regularizationPaid)} mensualisé</small></span><strong>${money(result.regularization)}</strong></div>`,
+    `<div class="end-row"><span>Équivalent déclaratif de la régularisation</span><strong>${result.automaticRegularizationHours.toLocaleString("fr-FR")} h • ${result.automaticRegularizationDays.toLocaleString("fr-FR")} jours</strong></div>`,
     `<div class="end-row"><span>Indemnité compensatrice de congés<small>Plus favorable : maintien ${money(result.suggestedCpMaintenanceNet)} / dixième ${money(result.suggestedCpTenthNet)}</small></span><strong>${money(result.cpCompensation)}</strong></div>`,
     `<div class="end-row"><span>Dernier salaire et indemnités d’accueil</span><strong>${money(result.lastSalary)}</strong></div>`
   ].join("");
@@ -869,7 +936,7 @@ function escapeHtml(value) {
 }
 
 function printEmployerDossier() {
-  saveContract(false);
+  saveContract(false, false);
   const records = Object.entries(officialDeclarations()).sort(([a], [b]) => a.localeCompare(b));
   const basis = contractBasis(state.contract);
   const dateFr = value => value
@@ -1065,7 +1132,7 @@ function printEmployerDossier() {
 }
 
 function exportData() {
-  saveContract(false);
+  saveContract(false, false);
   const backup = {
     format: "nounoucalc-complete-backup",
     formatVersion: 1,
@@ -1088,10 +1155,23 @@ function recalculateImportedState(importedState) {
   for (const [period, bucket] of Object.entries(importedState.declarations || {})) {
     for (const record of bucket?.simulations || []) {
       record.input = { ...record.input, period };
+      if (
+        record.input.isEndContract === "yes" &&
+        (record.input.endingRegularizationHours === "" || record.input.endingRegularizationHours == null)
+      ) {
+        record.input.endingRegularizationHours = number(importedState.contract.netHourlyRate) > 0
+          ? round(number(record.input.endingRegularizationNet) / number(importedState.contract.netHourlyRate), 2)
+          : 0;
+      }
       record.results = calculateDeclaration(importedState.contract, record.input);
       record.results.cmg = calculateCmg(importedState.cmgProfile || defaultState().cmgProfile, record.results);
-      record.results.cmg.officialCmg = number(record.input.officialCmg);
-      record.results.cmg.officialPajemploiDebit = number(record.input.officialPajemploiDebit);
+      record.results.cmg.officialCmg = record.input.officialCmg === "" || record.input.officialCmg == null
+        ? null
+        : number(record.input.officialCmg);
+      record.results.cmg.officialPajemploiDebit =
+        record.input.officialPajemploiDebit === "" || record.input.officialPajemploiDebit == null
+          ? null
+          : number(record.input.officialPajemploiDebit);
     }
   }
   return importedState;
@@ -1103,7 +1183,7 @@ async function importData(event) {
   try {
     const parsed = JSON.parse(await file.text());
     const importedState = parsed?.format === "nounoucalc-complete-backup" ? parsed.state : parsed;
-    if (![2, DATA_VERSION].includes(importedState?.version) || !importedState.contract || !importedState.declarations) {
+    if (![2, 3, DATA_VERSION].includes(importedState?.version) || !importedState.contract || !importedState.declarations) {
       throw new Error("Format non reconnu");
     }
     if (!confirm("Remplacer les données locales par cette sauvegarde ?")) return;
@@ -1151,6 +1231,10 @@ async function resetData() {
 }
 
 function showTab(name) {
+  if (name === "monthly" && contractDirty) {
+    saveContract(false, true);
+    toast("Contrat mis à jour. Vérifiez puis cliquez sur (Re)Calculer.");
+  }
   document.querySelectorAll(".tab").forEach(tab => tab.classList.toggle("active", tab.dataset.tab === name));
   document.querySelectorAll(".tab-panel").forEach(panel => panel.classList.toggle("active", panel.id === `tab-${name}`));
 }
@@ -1264,9 +1348,16 @@ async function initialize() {
 
 document.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", () => showTab(tab.dataset.tab)));
 contractIds.forEach(id => $(id).addEventListener("input", () => {
+  contractDirty = true;
   if (id === "netHourlyRate") refreshEstimatedGrossRate();
   updateContractPreview();
   updateAutomaticLeaveInfo();
+}));
+adminIds.forEach(id => $(id).addEventListener("input", () => {
+  contractDirty = true;
+}));
+cmgIds.forEach(id => $(id).addEventListener("input", () => {
+  contractDirty = true;
 }));
 $("period").addEventListener("change", event => loadMonth(event.target.value));
 $("newSimulationButton").addEventListener("click", newSimulation);

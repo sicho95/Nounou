@@ -263,13 +263,21 @@
               <label>Régularisation de salaire nette
                 <input id="endingRegularizationNet" type="number" min="0" step="0.01" value="0">
               </label>
+              <label>Heures de régularisation à ajouter
+                <input id="endingRegularizationHours" type="number" min="0" step="0.01" value="0" readonly>
+                <small>Calculées depuis les heures réelles de l’historique.</small>
+              </label>
+              <label>Jours de régularisation à ajouter
+                <input id="endingRegularizationDays" type="number" min="0" step="0.01" value="0" readonly>
+                <small>Ajoutés aux jours mensualisés, avec plafond Pajemploi de 31 jours.</small>
+              </label>
             </div>
             <details class="nested-details">
               <summary>Montants bruts pour France Travail</summary>
               <div class="form-grid two compact-grid collapsible-body">
                 <label>Indemnité compensatrice de congés payés brute
                   <input id="endingCpGross" type="number" min="0" step="0.01">
-                  <small>À recopier depuis le bulletin ou le solde Pajemploi.</small>
+                  <small>Calculée automatiquement ; à vérifier ensuite sur le solde Pajemploi.</small>
                 </label>
                 <label>Prime de précarité brute
                   <input id="precariousnessGross" type="number" min="0" step="0.01">
@@ -313,7 +321,7 @@
         <p class="hint">Ces trois montants sont facultatifs et se recopient après la déclaration. Ils ne servent pas à confirmer une simulation.</p>
         <label>Salaire brut officiel du mois <span class="optional">(facultatif)</span>
           <input id="officialGross" type="number" min="0" step="0.01" placeholder="À recopier après la déclaration">
-          <small>Améliore le calcul futur de l’indemnité de rupture. Sinon l’estimation contractuelle brute est conservée.</small>
+          <small>Montant du bulletin Pajemploi. Il est utilisé pour toute la durée du contrat, mois de fin compris.</small>
         </label>
         <div class="form-grid two compact-grid">
           <label>CMG rémunération calculé par Pajemploi <span class="optional">(après validation)</span>
@@ -383,7 +391,7 @@
             <small>Estimation 2026, le calcul Pajemploi fait foi</small>
           </article>
           <article class="metric featured">
-            <span>Coût réel estimé pour la famille</span>
+            <span>Reste à charge estimé après CMG</span>
             <strong id="outFamilyCost">—</strong>
             <small id="outCmgDetail"></small>
           </article>
@@ -617,7 +625,7 @@
             <select id="aeeh"><option value="no">Non</option><option value="yes">Oui</option></select>
           </label>
         </div>
-        <p class="hint">Pour une déclaration en 2026, la CAF utilise en principe les ressources 2024 (N−2), mensualisées. Le résultat reste une estimation : Pajemploi calcule le montant définitif.</p>
+        <p class="hint">Pour une déclaration en 2026, la CAF utilise en principe les ressources 2024 (N−2), mensualisées. Sans ce montant, NounouCalc n’affiche plus de faux reste à charge. Le résultat reste une estimation : Pajemploi calcule le montant définitif.</p>
       </div>
 
       <button id="saveContractButton" class="button primary">Enregistrer le contrat</button>
@@ -811,8 +819,22 @@
           <span class="calculation-rule-number">10</span>
           <div>
             <h3>Fin de contrat</h3>
-            <p>Les congés restants sont recalculés jusqu’à la date de fin. Sur 46 semaines ou moins, la régularisation ne peut être qu’à l’avantage de la salariée. À partir de neuf mois, l’indemnité de rupture d’un CDI correspond à 1/80 des salaires bruts, hors entretien et repas.</p>
+            <p>Les congés restants sont recalculés jusqu’à la date de fin. Sur 46 semaines ou moins, la régularisation ne peut être qu’à l’avantage de la salariée.</p>
+            <p>À partir de neuf mois, l’indemnité de rupture d’un CDI correspond à 1/80 de tous les salaires bruts reçus pendant le contrat, mois de fin inclus. Les sommes de rupture ayant le caractère de salaire, comme les congés payés, la régularisation et le préavis, sont ajoutées à la base. Entretien, repas et indemnité de rupture elle-même sont exclus.</p>
+            <div class="formula-chip">Base = salaires bruts de toute la période + congés/préavis/régularisation bruts soumis à cotisations</div>
+            <p>Lorsqu’une régularisation de salaire est due, ses heures et jours non encore déclarés sont ajoutés aux valeurs mensualisées du dernier mois. Le nombre de jours est limité à 31, maximum accepté par Pajemploi.</p>
+            <div class="formula-chip">Heures à ajouter = régularisation nette ÷ taux horaire net normal</div>
             <a href="https://www.service-public.gouv.fr/particuliers/vosdroits/F16842" target="_blank" rel="noopener noreferrer">Consulter la fiche officielle Service-Public <span aria-hidden="true">↗</span></a>
+          </div>
+        </article>
+
+        <article class="calculation-rule">
+          <span class="calculation-rule-number">11</span>
+          <div>
+            <h3>CMG et reste à charge</h3>
+            <p>Depuis septembre 2025, le CMG emploi direct dépend des ressources CAF N−2, du nombre d’enfants à charge, du nombre d’heures et du coût horaire réel, qui inclut salaire, entretien et repas. Pour 2026, NounouCalc utilise le coût horaire de référence de 4,91 € et le plafond assistant maternel de 8,09 €.</p>
+            <p class="rule-note">Les ressources sont indispensables. Si elles ne sont pas renseignées, l’application affiche « À renseigner » au lieu d’utiliser arbitrairement la borne minimale.</p>
+            <a href="https://www.urssaf.fr/accueil/actualites/evolution-cmg-ce-qui-va-changer.html" target="_blank" rel="noopener noreferrer">Voir la formule officielle Urssaf <span aria-hidden="true">↗</span></a>
           </div>
         </article>
 
