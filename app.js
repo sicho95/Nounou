@@ -3,6 +3,7 @@ import {
   calculateCmg,
   calculateDeclaration,
   calculateEnd,
+  cmgProfileAt,
   contractBasis,
   defaultState,
   estimatedGrossHourlyRate,
@@ -105,7 +106,7 @@ function loadState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (parsed?.version === DATA_VERSION) return parsed;
-    if ([2, 3].includes(parsed?.version)) return upgradeV2(parsed);
+    if ([2, 3, 4].includes(parsed?.version)) return upgradeV2(parsed);
   } catch (error) {
     console.warn("Sauvegarde illisible", error);
   }
@@ -192,11 +193,21 @@ function makeId() {
 }
 
 function upgradeV2(oldState) {
+  const legacyProfile = {
+    ...defaultState().cmgProfile,
+    ...(oldState.cmgProfile || {})
+  };
+  legacyProfile.effectivePeriod = legacyProfile.effectivePeriod ||
+    oldState.contract?.startDate?.slice(0, 7) ||
+    currentMonth();
   const upgraded = {
     ...defaultState(),
     ...oldState,
     version: DATA_VERSION,
-    cmgProfile: oldState.cmgProfile || defaultState().cmgProfile,
+    cmgProfile: legacyProfile,
+    cmgProfiles: Array.isArray(oldState.cmgProfiles) && oldState.cmgProfiles.length
+      ? clone(oldState.cmgProfiles)
+      : [clone(legacyProfile)],
     preferences: oldState.preferences || defaultState().preferences,
     declarations: oldState.version === 2 ? {} : clone(oldState.declarations || {})
   };
@@ -207,6 +218,23 @@ function upgradeV2(oldState) {
     }
   }
   return recalculateImportedState(upgraded);
+}
+
+function cmgProfilesForState(sourceState) {
+  const history = Array.isArray(sourceState.cmgProfiles) ? sourceState.cmgProfiles : [];
+  if (history.length) return history;
+  const fallback = {
+    ...defaultState().cmgProfile,
+    ...(sourceState.cmgProfile || {}),
+    effectivePeriod: sourceState.cmgProfile?.effectivePeriod ||
+      sourceState.contract?.startDate?.slice(0, 7) ||
+      currentMonth()
+  };
+  return [fallback];
+}
+
+function cmgProfileForPeriod(period, sourceState = state) {
+  return cmgProfileAt(cmgProfilesForState(sourceState), sourceState.cmgProfile, period);
 }
 
 function migrateLegacy() {
@@ -332,21 +360,44 @@ function fillContract() {
   contractIds.forEach(id => setValue(id, state.contract[id]));
   adminIds.forEach(id => setValue(id, state.admin[id]));
   cmgIds.forEach(id => setValue(id, state.cmgProfile[id]));
+  setValue("cmgEffectivePeriod", state.cmgProfile.effectivePeriod || state.contract.startDate?.slice(0, 7) || currentMonth());
   refreshEstimatedGrossRate();
   updateContractPreview();
+  renderCmgHistory();
 }
 
 function saveContract(showMessage = true, refreshPreview = true) {
   refreshEstimatedGrossRate();
   state.contract = { ...state.contract, ...readValues(contractIds) };
   state.admin = { ...state.admin, ...readValues(adminIds) };
-  state.cmgProfile = { ...state.cmgProfile, ...readValues(cmgIds) };
+  const cmgProfile = {
+    ...state.cmgProfile,
+    ...readValues(cmgIds),
+    effectivePeriod: $("cmgEffectivePeriod").value || $("period").value || currentMonth()
+  };
+  state.cmgProfile = cmgProfile;
+  const history = cmgProfilesForState(state).filter(profile => profile.effectivePeriod !== cmgProfile.effectivePeriod);
+  history.push(clone(cmgProfile));
+  state.cmgProfiles = history.sort((a, b) => a.effectivePeriod.localeCompare(b.effectivePeriod));
   contractDirty = false;
   saveState();
   updateContractPreview();
+  renderCmgHistory();
   updatePeriodHints();
   if (refreshPreview) refreshCurrentMonthPreview();
   if (showMessage) toast("Contrat enregistré.");
+}
+
+function renderCmgHistory() {
+  const target = $("cmgHistoryList");
+  if (!target) return;
+  const history = cmgProfilesForState(state)
+    .slice()
+    .sort((a, b) => b.effectivePeriod.localeCompare(a.effectivePeriod));
+  target.innerHTML = history.map(profile =>
+    `<div class="breakdown-row"><span>À partir de ${monthLabel(profile.effectivePeriod)}</span>` +
+    `<strong>${number(profile.annualResourcesN2).toLocaleString("fr-FR")} € • ${number(profile.dependentChildren, 1)} enfant${number(profile.dependentChildren, 1) > 1 ? "s" : ""}</strong></div>`
+  ).join("");
 }
 
 function defaultMonthly(period) {
@@ -483,7 +534,7 @@ function newSimulation() {
 
 function calculateRecordResults(input) {
   const results = calculateDeclaration(state.contract, input);
-  results.cmg = calculateCmg(state.cmgProfile, results);
+  results.cmg = calculateCmg(cmgProfileForPeriod(input.period), results);
   results.cmg.officialCmg = input.officialCmg === "" || input.officialCmg == null
     ? null
     : number(input.officialCmg);
@@ -500,12 +551,17 @@ function buildDraftRecord(input = monthlyInput()) {
 function refreshCurrentMonthPreview() {
   if (!currentRecord || !$("period").value) return;
   const input = monthlyInput();
+  const bucket = monthBucket(input.period);
+  if (bucket?.officialId === currentRecord.id) {
+    renderResults(currentRecord);
+    $("monthStatus").textContent = "Déclaration officielle conservée • créez une variante pour appliquer les nouveaux paramètres";
+    return;
+  }
   currentRecord = {
     ...currentRecord,
     input,
     results: calculateRecordResults(input)
   };
-  const bucket = monthBucket(input.period);
   if (bucket && bucket.officialId !== currentRecord.id) {
     const index = bucket.simulations.findIndex(item => item.id === currentRecord.id);
     if (index >= 0) {
@@ -515,9 +571,7 @@ function refreshCurrentMonthPreview() {
     }
   }
   renderResults(currentRecord);
-  $("monthStatus").textContent = bucket?.officialId === currentRecord.id
-    ? "Déclaration officielle conservée • créez une variante pour appliquer le nouveau contrat"
-    : "Simulation recalculée avec le contrat modifié";
+  $("monthStatus").textContent = "Simulation recalculée avec les nouveaux paramètres";
 }
 
 function updateAutomaticLeaveInfo() {
@@ -677,7 +731,8 @@ function renderResults(record) {
     ? (hasOfficialDebit
       ? "Montant réel prélevé par Pajemploi+"
       : cmgConfigured
-        ? `${results.cmg.estimatedAidRate.toLocaleString("fr-FR")} % d’aide estimée • ${results.cmg.hours.toLocaleString("fr-FR")} h prises en compte`
+        ? `${results.cmg.estimatedAidRate.toLocaleString("fr-FR")} % d’aide estimée • ${results.cmg.hours.toLocaleString("fr-FR")} h prises en compte` +
+          (results.cmg.effectivePeriod ? ` • ressources applicables depuis ${monthLabel(results.cmg.effectivePeriod)}` : "")
         : "Renseignez vos ressources CAF 2024 dans Contrat pour obtenir une estimation")
     : "Renseignez les ressources CAF dans le contrat";
   $("outMaintenance").textContent = money(expenses.maintenance);
@@ -980,8 +1035,14 @@ function printEmployerDossier() {
     conge_parental: "Congé parental",
     autre: "Autre événement"
   };
-  const rows = records.map(([period, record]) => `
-    <tr>
+  const rows = records.map(([period, record]) => {
+    const hasOfficialCmg = record.results.cmg?.officialCmg != null;
+    const hasOfficialDebit = record.results.cmg?.officialPajemploiDebit != null;
+    const cmg = hasOfficialCmg ? record.results.cmg.officialCmg : record.results.cmg?.estimatedCmg;
+    const family = hasOfficialDebit
+      ? record.results.cmg.officialPajemploiDebit
+      : record.results.cmg?.estimatedOutOfPocket;
+    return `<tr>
       <td>${escapeHtml(monthLabel(period))}</td>
       <td>${record.results.declared.days}</td>
       <td>${escapeHtml(record.input.actualDays || 0)}</td>
@@ -992,8 +1053,18 @@ function printEmployerDossier() {
       <td>${money(record.results.declared.netSalary)}</td>
       <td>${money(record.results.expenses.total)}</td>
       <td>${money(record.results.totalToPay)}</td>
-      <td>${money(record.results.cmg?.officialCmg || record.results.cmg?.estimatedCmg)}</td>
-      <td>${money(record.results.cmg?.officialPajemploiDebit || record.results.cmg?.estimatedOutOfPocket)}</td>
+      <td>${cmg == null ? "À renseigner" : money(cmg)}${hasOfficialCmg ? " <em>(officiel)</em>" : " <em>(estimé)</em>"}</td>
+      <td>${family == null ? "À renseigner" : money(family)}${hasOfficialDebit ? " <em>(réel)</em>" : " <em>(estimé)</em>"}</td>
+    </tr>`;
+  }).join("");
+  const cmgProfileRows = cmgProfilesForState(state)
+    .slice()
+    .sort((a, b) => a.effectivePeriod.localeCompare(b.effectivePeriod))
+    .map(profile => `<tr>
+      <td>${escapeHtml(monthLabel(profile.effectivePeriod))}</td>
+      <td>${number(profile.annualResourcesN2).toLocaleString("fr-FR")} €</td>
+      <td>${number(profile.dependentChildren, 1)}</td>
+      <td>${profile.aeeh === "yes" ? "Oui" : "Non"}</td>
     </tr>`).join("");
   const franceTravailRows = records.map(([period, record]) => {
     const calculatedHours = number(record.results.declared.normalHours) +
@@ -1072,8 +1143,8 @@ function printEmployerDossier() {
   ].filter(Boolean);
   const totals = records.reduce((sum, [, record]) => ({
     paid: sum.paid + number(record.results.totalToPay),
-    cmg: sum.cmg + number(record.results.cmg?.officialCmg || record.results.cmg?.estimatedCmg),
-    family: sum.family + number(record.results.cmg?.officialPajemploiDebit || record.results.cmg?.estimatedOutOfPocket)
+    cmg: sum.cmg + number(record.results.cmg?.officialCmg ?? record.results.cmg?.estimatedCmg),
+    family: sum.family + number(record.results.cmg?.officialPajemploiDebit ?? record.results.cmg?.estimatedOutOfPocket)
   }), { paid: 0, cmg: 0, family: 0 });
 
   const report = window.open("", "_blank", "width=1200,height=800");
@@ -1101,10 +1172,13 @@ function printEmployerDossier() {
     </div>
     <h2>Mensualisation de référence</h2>
     <p>${basis.declaredDays} jours d’activité • ${basis.declaredNormalHours} heures normales • ${basis.declaredContractMajorHours} heures majorées • taux net normal ${money(state.contract.netHourlyRate)}</p>
+    <h2>Historique des ressources CMG</h2>
+    <table><thead><tr><th>Applicable à partir de</th><th>Ressources annuelles N−2</th><th>Enfants à charge</th><th>AEEH</th></tr></thead>
+    <tbody>${cmgProfileRows}</tbody></table>
     <h2>Déclarations confirmées</h2>
-    <table><thead><tr><th>Mois</th><th>Jours mens.</th><th>Jours réels</th><th>H normales</th><th>H compl.</th><th>H maj.</th><th>CP jours</th><th>Salaire net</th><th>Indemnités</th><th>Payé salariée</th><th>CMG estimé</th><th>Coût famille</th></tr></thead>
+    <table><thead><tr><th>Mois</th><th>Jours mens.</th><th>Jours réels</th><th>H normales</th><th>H compl.</th><th>H maj.</th><th>CP jours</th><th>Salaire net</th><th>Indemnités</th><th>Payé salariée</th><th>CMG officiel/estimé</th><th>Foyer réel/estimé</th></tr></thead>
     <tbody>${rows || '<tr><td colspan="12">Aucune déclaration confirmée.</td></tr>'}</tbody></table>
-    <div class="totals"><strong>Total versé : ${money(totals.paid)}</strong><strong>CMG estimé : ${money(totals.cmg)}</strong><strong>Coût famille estimé : ${money(totals.family)}</strong></div>
+    <div class="totals"><strong>Total versé : ${money(totals.paid)}</strong><strong>CMG officiel ou estimé : ${money(totals.cmg)}</strong><strong>Foyer réel ou estimé : ${money(totals.family)}</strong></div>
 
     <h2 class="ft-title page-break">Aide à la saisie de l’attestation France Travail</h2>
     <p class="muted">Mémo préparatoire constitué uniquement à partir des déclarations confirmées. L’attestation officielle doit être générée et transmise depuis Pajemploi, puis remise à la salariée.</p>
@@ -1152,6 +1226,10 @@ function exportData() {
 }
 
 function recalculateImportedState(importedState) {
+  importedState.cmgProfiles = cmgProfilesForState(importedState);
+  importedState.cmgProfile = importedState.cmgProfile ||
+    importedState.cmgProfiles[importedState.cmgProfiles.length - 1] ||
+    defaultState().cmgProfile;
   for (const [period, bucket] of Object.entries(importedState.declarations || {})) {
     for (const record of bucket?.simulations || []) {
       record.input = { ...record.input, period };
@@ -1164,7 +1242,7 @@ function recalculateImportedState(importedState) {
           : 0;
       }
       record.results = calculateDeclaration(importedState.contract, record.input);
-      record.results.cmg = calculateCmg(importedState.cmgProfile || defaultState().cmgProfile, record.results);
+      record.results.cmg = calculateCmg(cmgProfileForPeriod(period, importedState), record.results);
       record.results.cmg.officialCmg = record.input.officialCmg === "" || record.input.officialCmg == null
         ? null
         : number(record.input.officialCmg);
@@ -1183,7 +1261,7 @@ async function importData(event) {
   try {
     const parsed = JSON.parse(await file.text());
     const importedState = parsed?.format === "nounoucalc-complete-backup" ? parsed.state : parsed;
-    if (![2, 3, DATA_VERSION].includes(importedState?.version) || !importedState.contract || !importedState.declarations) {
+    if (![2, 3, 4, DATA_VERSION].includes(importedState?.version) || !importedState.contract || !importedState.declarations) {
       throw new Error("Format non reconnu");
     }
     if (!confirm("Remplacer les données locales par cette sauvegarde ?")) return;
@@ -1359,6 +1437,9 @@ adminIds.forEach(id => $(id).addEventListener("input", () => {
 cmgIds.forEach(id => $(id).addEventListener("input", () => {
   contractDirty = true;
 }));
+$("cmgEffectivePeriod").addEventListener("input", () => {
+  contractDirty = true;
+});
 $("period").addEventListener("change", event => loadMonth(event.target.value));
 $("newSimulationButton").addEventListener("click", newSimulation);
 $("isEndContract").addEventListener("change", () => updateMonthlyEndVisibility(true));

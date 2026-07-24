@@ -5,6 +5,7 @@ import {
   calculateDeclaration,
   calculateEnd,
   calculateMaintenanceAllowance,
+  cmgProfileAt,
   contractBasis,
   defaultState,
   estimatedGrossHourlyRate,
@@ -473,4 +474,15 @@ test("retrouve l'estimation CMG du jeu de contrôle familial de juillet 2026", (
   assert.equal(cmg.estimatedCmg, 507.67);
   assert.equal(cmg.estimatedOutOfPocket, 556.26);
   assert.equal(cmg.estimatedAidRate, 47.7);
+});
+
+test("applique chaque ressource CMG uniquement à partir de son mois d'effet", () => {
+  const history = [
+    { effectivePeriod: "2025-09", annualResourcesN2: 50000 },
+    { effectivePeriod: "2026-08", annualResourcesN2: 59700 }
+  ];
+
+  assert.equal(cmgProfileAt(history, {}, "2026-07").annualResourcesN2, 50000);
+  assert.equal(cmgProfileAt(history, {}, "2026-08").annualResourcesN2, 59700);
+  assert.equal(cmgProfileAt(history, {}, "2027-01").annualResourcesN2, 59700);
 });

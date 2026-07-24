@@ -614,6 +614,10 @@
       <div class="card">
         <h3>Estimation du CMG emploi direct</h3>
         <div class="form-grid three">
+          <label>Appliquer ces ressources à partir de
+            <input id="cmgEffectivePeriod" type="month">
+            <small>Les mois antérieurs conservent leur ancien barème et leurs montants confirmés.</small>
+          </label>
           <label>Ressources annuelles CAF de l’année N−2
             <input id="annualResourcesN2" type="number" min="0" step="1">
             <small>Montant “ressources prises en compte pour le CMG” visible dans Mon Compte CAF, pas le quotient familial.</small>
@@ -626,6 +630,10 @@
           </label>
         </div>
         <p class="hint">Pour une déclaration en 2026, la CAF utilise en principe les ressources 2024 (N−2), mensualisées. Sans ce montant, NounouCalc n’affiche plus de faux reste à charge. Le résultat reste une estimation : Pajemploi calcule le montant définitif.</p>
+        <details class="nested-details">
+          <summary>Historique des ressources CMG</summary>
+          <div id="cmgHistoryList" class="collapsible-body"></div>
+        </details>
       </div>
 
       <button id="saveContractButton" class="button primary">Enregistrer le contrat</button>
@@ -833,6 +841,7 @@
           <div>
             <h3>CMG et reste à charge</h3>
             <p>Depuis septembre 2025, le CMG emploi direct dépend des ressources CAF N−2, du nombre d’enfants à charge, du nombre d’heures et du coût horaire réel, qui inclut salaire, entretien et repas. Pour 2026, NounouCalc utilise le coût horaire de référence de 4,91 € et le plafond assistant maternel de 8,09 €.</p>
+            <p>Chaque nouveau montant de ressources est enregistré avec son mois d’effet. Il ne modifie jamais les déclarations Pajemploi déjà confirmées et ne s’applique qu’aux mois concernés et suivants.</p>
             <p class="rule-note">Les ressources sont indispensables. Si elles ne sont pas renseignées, l’application affiche « À renseigner » au lieu d’utiliser arbitrairement la borne minimale.</p>
             <a href="https://www.urssaf.fr/accueil/actualites/evolution-cmg-ce-qui-va-changer.html" target="_blank" rel="noopener noreferrer">Voir la formule officielle Urssaf <span aria-hidden="true">↗</span></a>
           </div>

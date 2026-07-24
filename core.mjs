@@ -1,4 +1,4 @@
-export const DATA_VERSION = 4;
+export const DATA_VERSION = 5;
 
 export function number(value, fallback = 0) {
   const parsed = Number.parseFloat(value);
@@ -290,6 +290,14 @@ export function calculateDeclaration(contract, input) {
 
 const CMG_EFFORT_RATES = [0.000619, 0.000516, 0.000413, 0.000310, 0.000310, 0.000310, 0.000310, 0.000206];
 
+export function cmgProfileAt(profiles, fallback, period) {
+  const history = Array.isArray(profiles) ? profiles : [];
+  const applicable = history
+    .filter(profile => profile?.effectivePeriod && profile.effectivePeriod <= period)
+    .sort((a, b) => a.effectivePeriod.localeCompare(b.effectivePeriod));
+  return applicable[applicable.length - 1] || history[0] || fallback || {};
+}
+
 export function calculateCmg(cmgProfile, declaration) {
   const annualResources = Math.max(0, number(cmgProfile.annualResourcesN2));
   const configured = annualResources > 0;
@@ -332,6 +340,7 @@ export function calculateCmg(cmgProfile, declaration) {
 
   return {
     configured,
+    effectivePeriod: cmgProfile.effectivePeriod || "",
     annualResources: round(annualResources),
     monthlyResources: round(monthlyResources),
     dependentChildren: children,
@@ -696,8 +705,10 @@ export function defaultState() {
     cmgProfile: {
       annualResourcesN2: "",
       dependentChildren: 1,
-      aeeh: "no"
+      aeeh: "no",
+      effectivePeriod: ""
     },
+    cmgProfiles: [],
     preferences: {
       theme: "auto"
     },

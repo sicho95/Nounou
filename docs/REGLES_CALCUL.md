@@ -186,6 +186,10 @@ Le montant officiel calculé par Pajemploi+ peut être enregistré après valida
 
 Une ressource vide ou égale à zéro est traitée comme une information manquante. NounouCalc affiche alors « À renseigner » et ne substitue plus silencieusement la borne minimale de 814,02 €, qui produisait un CMG artificiellement élevé et un reste à charge trompeur. Le reste à charge estimé est calculé à partir du total réellement versé du mois, y compris les frais non couverts, diminué du CMG estimé.
 
+Les ressources CMG sont historisées par mois d’effet. Lorsqu’un nouveau montant N−2 est communiqué par la CAF, l’employeur choisit le premier mois auquel il s’applique. Les mois antérieurs continuent d’utiliser l’ancien profil ; les mois futurs utilisent le nouveau. Une déclaration confirmée n’est jamais réécrite par un changement ultérieur du contrat ou des ressources. Son CMG officiel et son prélèvement Pajemploi+ réel restent figés dans le registre employeur.
+
+Le dossier employeur imprime à la fois la chronologie des ressources et, mois par mois, le CMG officiel lorsqu’il a été recopié, sinon l’estimation, ainsi que le prélèvement réel du foyer lorsqu’il est connu.
+
 Sources complémentaires :
 
 - Urssaf, « Évolution du CMG »  
@@ -208,7 +212,7 @@ Ces références permettront une comparaison champ par champ et l’ajout des ca
 
 ## 8. Mémoire locale et PWA
 
-L’état métier est unique et versionné. Il comprend les données administratives, le contrat, le profil CMG, la préférence de thème, toutes les simulations mensuelles, l’identifiant de la simulation réellement validée sur Pajemploi, les congés associés à leur période d’acquisition et les montants officiels recopiés après déclaration.
+L’état métier est unique et versionné. Il comprend les données administratives, le contrat, l’historique daté des profils CMG, la préférence de thème, toutes les simulations mensuelles, l’identifiant de la simulation réellement validée sur Pajemploi, les congés associés à leur période d’acquisition et les montants officiels recopiés après déclaration.
 
 Il est écrit simultanément :
 
