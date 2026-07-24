@@ -111,7 +111,7 @@ Pour un CDI rompu par retrait de l’enfant, l’indemnité de rupture est calcu
 ) ÷ 80
 ```
 
-Les congés payés, la régularisation de salaire et l’éventuelle indemnité compensatrice de préavis sont soumis à cotisations et sont donc ajoutés à la base brute. Les indemnités d’entretien, de repas, kilométriques et l’indemnité de rupture elle-même sont exclues.
+Les congés payés, la régularisation de salaire et l’éventuelle indemnité compensatrice de préavis sont soumis à cotisations et entrent donc dans la base brute. Ils ne doivent toutefois être comptés qu’une fois : lorsqu’un brut officiel du dernier mois est renseigné, la régularisation qu’il contient n’est pas rajoutée une seconde fois. L’indemnité compensatrice de congés payés, présentée séparément par Pajemploi, reste ajoutée à la base. Les indemnités d’entretien, de repas, kilométriques et l’indemnité de rupture elle-même sont exclues.
 
 Cette règle explique le résultat NounouTop transmis pour juillet 2026 :
 
@@ -142,7 +142,9 @@ La conversion monétaire des heures est celle illustrée par NounouTop : une ré
 
 La fin de contrat est intégrée à la déclaration du dernier mois. Les champs proposés correspondent à la rubrique Pajemploi : date et motif de fin, prime de précarité, indemnité compensatrice de congés payés et jours soldés, indemnité compensatrice de préavis, indemnité de rupture et régularisation de salaire.
 
-L’indemnité compensatrice de congés, le préavis, la précarité et la régularisation sont ajoutés au salaire net déclaré. L’indemnité de rupture est ajoutée au total à verser mais reste isolée dans le récapitulatif. L’écran « Fin » ne demande que la date et le motif. Il calcule automatiquement la régularisation, les congés, le dernier salaire, la précarité éventuelle et la rupture. Si le dernier mois n’est pas encore confirmé, il est estimé avec les jours programmés jusqu’à la date de fin et clairement signalé.
+La régularisation de salaire est ajoutée au salaire net déclaré du dernier mois. L’indemnité compensatrice de congés, le préavis, la précarité et l’indemnité de rupture restent dans leurs cases dédiées de la rubrique « Indemnités de fin de contrat » ; elles sont ajoutées au total à verser sans gonfler la case « salaire net du mois ».
+
+Il n’existe qu’un seul parcours de fin de contrat : dans l’onglet « Mois », l’employeur indique que la déclaration courante est la dernière, choisit la date et le motif, puis appuie sur « (Re)Calculer ». La régularisation, les congés, la précarité éventuelle et l’indemnité de rupture sont alors intégrés directement au récapitulatif Pajemploi du mois. Il n’y a pas de second calcul à lancer dans un autre onglet.
 
 ## 6. Sources officielles
 
@@ -183,6 +185,8 @@ Pour 2026, l’estimation du CMG utilise :
 - le plafond horaire assistant maternel de 8,09 €.
 
 Le montant officiel calculé par Pajemploi+ peut être enregistré après validation et remplace alors l’estimation dans le dossier employeur.
+
+Pour le dernier mois, le coût de garde comprend le salaire net déclaré et les éléments de fin soumis à cotisations, même lorsqu’ils sont présentés dans une case séparée (notamment congés et préavis). La régularisation est déjà comprise dans le salaire net du mois. L’indemnité de rupture, exonérée de cotisations et déclarée séparément, n’ouvre pas droit au CMG : elle reste intégralement dans le reste à charge.
 
 Une ressource vide ou égale à zéro est traitée comme une information manquante. NounouCalc affiche alors « À renseigner » et ne substitue plus silencieusement la borne minimale de 814,02 €, qui produisait un CMG artificiellement élevé et un reste à charge trompeur. Le reste à charge estimé est calculé à partir du total réellement versé du mois, y compris les frais non couverts, diminué du CMG estimé.
 

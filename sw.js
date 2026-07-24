@@ -1,4 +1,4 @@
-const CACHE_NAME = "nounoucalc-runtime-v8";
+const CACHE_NAME = "nounoucalc-runtime-v9";
 const APP_SHELL = [
   "./",
   "./index.html",

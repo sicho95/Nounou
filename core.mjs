@@ -177,8 +177,9 @@ export function calculateDeclaration(contract, input) {
   const complementaryNet = complementaryHours * netRate * complementaryFactor;
   const extraMajorNet = extraMajorHours * netRate * majorFactor;
   const salaryBeforeDeduction = normalNet + contractMajorNet + complementaryNet + extraMajorNet +
-    cpPaidNet + endingCpNet + noticeCompensationNet + precariousnessNet + regularizationNet + otherSalaryNet;
+    cpPaidNet + regularizationNet + otherSalaryNet;
   const netSalary = Math.max(0, salaryBeforeDeduction - deduction);
+  const separateEndingSalaryElements = endingCpNet + noticeCompensationNet + precariousnessNet;
 
   const normalGross = basis.normalHoursExact * grossRate;
   const contractMajorGross = basis.majorHoursExact * grossRate * majorFactor;
@@ -251,7 +252,10 @@ export function calculateDeclaration(contract, input) {
       maintenanceCalculation
     },
     advancePaid: round(advancePaid),
-    totalToPay: round(Math.max(0, netSalary + maintenance + meals + kilometers + ruptureIndemnityNet - advancePaid)),
+    totalToPay: round(Math.max(
+      0,
+      netSalary + separateEndingSalaryElements + maintenance + meals + kilometers + ruptureIndemnityNet - advancePaid
+    )),
     paidLeaveConversion: {
       hours: round(cpHours, 4),
       normalHoursWithPaidLeave: round(normalHoursWithPaidLeave, 4)
@@ -314,10 +318,10 @@ export function calculateCmg(cmgProfile, declaration) {
   );
   const endingSalaryElements = number(declaration.ending?.precariousnessNet) +
     number(declaration.ending?.cpCompensationNet) +
-    number(declaration.ending?.noticeCompensationNet) +
-    number(declaration.ending?.regularizationNet);
+    number(declaration.ending?.noticeCompensationNet);
   const eligibleCost = Math.max(0,
-    number(declared.netSalary) - endingSalaryElements +
+    number(declared.netSalary) +
+    endingSalaryElements +
     number(declaration.expenses?.maintenance) +
     number(declaration.expenses?.meals)
   );
@@ -597,9 +601,12 @@ export function calculateEnd(contract, declarations, input) {
   const noticeCompensationGrossForRupture = round(
     grossToNetRatio > 0 ? noticeCompensationNetForRupture / grossToNetRatio : noticeCompensationNetForRupture
   );
+  const endingGrossIsOfficial = endingRecord?.results?.salary?.grossSource === "official" ||
+    number(endingRecord?.input?.officialGross) > 0;
+  const regularizationGrossToAdd = endingGrossIsOfficial ? 0 : regularizationGrossForRupture;
   const ruptureSalaryElementsGross = round(
     cpCompensationGrossForRupture +
-    regularizationGrossForRupture +
+    regularizationGrossToAdd +
     noticeCompensationGrossForRupture
   );
   const ruptureGrossBase = round(grossSalaryHistory + ruptureSalaryElementsGross);
@@ -625,6 +632,8 @@ export function calculateEnd(contract, declarations, input) {
     ruptureGrossBase,
     cpCompensationGrossForRupture,
     regularizationGrossForRupture,
+    regularizationGrossToAdd,
+    endingGrossIsOfficial,
     noticeCompensationGrossForRupture,
     seniorityMonths,
     ruptureEligible,

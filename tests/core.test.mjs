@@ -212,7 +212,7 @@ test("retrouve les 2,75 jours acquis en juin montrés par NounouTop", () => {
   assert.equal(declaration.leave.acquiredRaw, 2.75);
 });
 
-test("une fin de contrat ajoute les indemnités au salaire et au total à payer", () => {
+test("une fin de contrat garde les indemnités dans leurs cases dédiées et les ajoute au total", () => {
   const result = calculateDeclaration(contract, {
     period: "2027-07",
     actualDays: 18,
@@ -235,7 +235,11 @@ test("une fin de contrat ajoute les indemnités au salaire et au total à payer"
   assert.equal(result.ending.active, true);
   assert.equal(result.declared.cpDays, 3);
   assert.equal(result.paidLeaveConversion.hours, 79.36);
-  assert.equal(Math.round((result.totalToPay - result.declared.netSalary - result.expenses.total) * 100) / 100, 172.38);
+  assert.equal(result.declared.netSalary, 651.67);
+  assert.equal(
+    Math.round((result.totalToPay - result.declared.netSalary - result.expenses.total) * 100) / 100,
+    489.82
+  );
 });
 
 test("ajoute les équivalents de régularisation aux heures et jours Pajemploi avec plafond à 31 jours", () => {
@@ -381,6 +385,53 @@ test("retrouve le 1/80 NounouTop en incluant le mois de fin et les congés bruts
   assert.equal(result.suggestedRuptureIndemnity, 172.38);
 });
 
+test("ne compte pas deux fois la régularisation déjà comprise dans le brut officiel du dernier mois", () => {
+  const grossByPeriod = {
+    "2025-09": 670.79,
+    "2025-10": 1088.37,
+    "2025-11": 1031.45,
+    "2025-12": 1088.37,
+    "2026-01": 1088.37,
+    "2026-02": 1088.37,
+    "2026-03": 1088.37,
+    "2026-04": 1088.37,
+    "2026-05": 1088.37,
+    "2026-06": 2280.76,
+    "2026-07": 1782.71
+  };
+  const declarations = Object.fromEntries(Object.entries(grossByPeriod).map(([period, gross]) => [
+    period,
+    {
+      input: {
+        period,
+        officialGross: gross,
+        endingCpGross: period === "2026-07" ? 406.35 : ""
+      },
+      results: {
+        salary: { grossForHistory: gross, grossSource: "official" },
+        ending: { noticeCompensationNet: 0 }
+      }
+    }
+  ]));
+  const result = calculateEnd(
+    { ...contract, startDate: "2025-09-08", netHourlyRate: 4.6 },
+    declarations,
+    {
+      endDate: "2026-07-31",
+      reason: "employer",
+      regularizationDueNet: 544.55,
+      regularizationPaidNet: 0,
+      endingCpNet: 317.44,
+      lastSalaryNet: 0
+    }
+  );
+
+  assert.ok(result.regularizationGrossForRupture > 0);
+  assert.equal(result.regularizationGrossToAdd, 0);
+  assert.equal(result.ruptureGrossBase, 13790.65);
+  assert.equal(result.suggestedRuptureIndemnity, 172.38);
+});
+
 test("calcule la régularisation, les congés et le dernier salaire sans montant saisi", () => {
   const input = {
     period: "2026-09",
@@ -474,6 +525,36 @@ test("retrouve l'estimation CMG du jeu de contrôle familial de juillet 2026", (
   assert.equal(cmg.estimatedCmg, 507.67);
   assert.equal(cmg.estimatedOutOfPocket, 556.26);
   assert.equal(cmg.estimatedAidRate, 47.7);
+});
+
+test("le CMG prend le salaire de fin soumis à cotisations mais laisse l'indemnité de rupture à charge", () => {
+  const declaration = {
+    declared: { normalHours: 283, complementaryHours: 0, majorHours: 18, netSalary: 1392.63 },
+    expenses: { maintenance: 69.4, meals: 109, kilometers: 0 },
+    totalToPay: 2060.85,
+    ending: {
+      cpCompensationNet: 317.44,
+      regularizationNet: 544.55,
+      noticeCompensationNet: 0,
+      precariousnessNet: 0,
+      ruptureIndemnityNet: 172.38
+    }
+  };
+  const cmg = calculateCmg(
+    { annualResourcesN2: 59700, dependentChildren: 2, aeeh: "no" },
+    declaration
+  );
+  const withoutRupture = calculateCmg(
+    { annualResourcesN2: 59700, dependentChildren: 2, aeeh: "no" },
+    { ...declaration, totalToPay: declaration.totalToPay - 172.38 }
+  );
+
+  assert.equal(cmg.eligibleCost, 1888.47);
+  assert.equal(cmg.estimatedCmg, withoutRupture.estimatedCmg);
+  assert.equal(
+    Number((cmg.estimatedOutOfPocket - withoutRupture.estimatedOutOfPocket).toFixed(2)),
+    172.38
+  );
 });
 
 test("applique chaque ressource CMG uniquement à partir de son mois d'effet", () => {

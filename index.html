@@ -49,10 +49,6 @@
         <svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16v16H4V5Zm4-2v4m8-4v4M8 11h8m-8 4h8"/></svg>
         <span>Historique</span>
       </button>
-      <button class="tab" data-tab="ending">
-        <svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 12h12m-4-4 4 4-4 4m5-11h3v14h-3"/></svg>
-        <span>Fin</span>
-      </button>
       <button class="tab" data-tab="data">
         <svg class="tab-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12m-4-4 4 4 4-4M5 18v3h14v-3"/></svg>
         <span>Données</span>
@@ -203,6 +199,9 @@
       <details class="card collapsible" id="monthlyEndCard">
         <summary>Fin de contrat ce mois</summary>
         <div class="collapsible-body">
+          <div class="notice info compact-notice">
+            <strong>Tout se fait dans cette dernière déclaration.</strong> Choisissez « Oui », vérifiez la date et le motif, puis utilisez le bouton « (Re)Calculer » en bas de la page. Il n’y a plus de second écran de calcul.
+          </div>
           <label class="select-emphasis">S’agit-il de la dernière déclaration du contrat ?
             <select id="isEndContract"><option value="no">Non</option><option value="yes">Oui</option></select>
           </label>
@@ -242,8 +241,9 @@
               </label>
             </div>
             <div id="endAutoInfo" class="auto-info"></div>
-            <button id="recalculateEndButton" class="button ghost compact" type="button">Recalculer automatiquement</button>
-            <div class="form-grid two compact-grid end-fields">
+            <details class="nested-details">
+              <summary>Montants calculés automatiquement et détails Pajemploi</summary>
+              <div class="form-grid two compact-grid end-fields collapsible-body">
               <label>Prime de précarité nette
                 <input id="precariousnessNet" type="number" min="0" step="0.01">
                 <small>CDD uniquement.</small>
@@ -271,7 +271,8 @@
                 <input id="endingRegularizationDays" type="number" min="0" step="0.01" value="0" readonly>
                 <small>Ajoutés aux jours mensualisés, avec plafond Pajemploi de 31 jours.</small>
               </label>
-            </div>
+              </div>
+            </details>
             <details class="nested-details">
               <summary>Montants bruts pour France Travail</summary>
               <div class="form-grid two compact-grid collapsible-body">
@@ -290,7 +291,7 @@
                 </label>
               </div>
             </details>
-            <p class="hint">Les propositions utilisent le contrat et les mois confirmés. Elles restent modifiables avant la simulation et doivent être comparées au module officiel Pajemploi.</p>
+            <p class="hint">Les montants sont recalculés automatiquement lorsque vous appuyez sur « (Re)Calculer ». Ils restent modifiables dans le détail si le simulateur officiel Pajemploi fournit une valeur différente.</p>
           </div>
         </div>
       </details>
@@ -651,51 +652,6 @@
       <div id="historyList" class="history-list"></div>
     </section>
 
-    <section id="tab-ending" class="tab-panel">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">Simulation</p>
-          <h2>Fin de contrat</h2>
-        </div>
-      </div>
-      <div class="notice warning">
-        La régularisation, les congés, le dernier salaire et l’indemnité de rupture sont calculés automatiquement à partir du contrat et des déclarations confirmées. Les documents Pajemploi restent la référence officielle.
-      </div>
-      <div class="card">
-        <div class="form-grid two">
-          <label>Date de fin envisagée
-            <input id="endDate" type="date">
-          </label>
-          <label>Motif
-            <select id="endReason">
-              <option value="employer">Retrait de l’enfant par l’employeur</option>
-              <option value="employee">Démission de la salariée</option>
-              <option value="agreement">Accord / autre motif</option>
-              <option value="death">Décès de l’enfant</option>
-              <option value="serious">Faute grave ou lourde</option>
-              <option value="approval">Retrait ou suspension d’agrément</option>
-              <option value="cdd">Fin de CDD</option>
-            </select>
-          </label>
-        </div>
-        <p class="auto-info"><strong>Aucune somme à saisir ici.</strong> Confirmez d’abord les mois réellement déclarés dans l’historique, puis choisissez seulement la date et le motif.</p>
-      </div>
-      <button id="calculateEndButton" class="button primary">Calculer automatiquement</button>
-      <div id="endResults" class="results hidden">
-        <div class="card breakdown">
-          <h3>Solde préparatoire</h3>
-          <div id="endBreakdown"></div>
-          <div class="card cp-summary inset">
-            <h3>Congés restant à solder</h3>
-            <p><strong id="endLeaveDays">—</strong> jours acquis non encore déclarés payés.</p>
-            <p id="endLeaveDetail" class="hint"></p>
-          </div>
-          <div class="grand-total standalone"><span>Total net estimé à verser</span><strong id="endTotal">—</strong></div>
-        </div>
-        <p id="endNotes" class="hint"></p>
-      </div>
-    </section>
-
     <section id="tab-data" class="tab-panel">
       <div class="section-heading">
         <div>
@@ -828,8 +784,8 @@
           <div>
             <h3>Fin de contrat</h3>
             <p>Les congés restants sont recalculés jusqu’à la date de fin. Sur 46 semaines ou moins, la régularisation ne peut être qu’à l’avantage de la salariée.</p>
-            <p>À partir de neuf mois, l’indemnité de rupture d’un CDI correspond à 1/80 de tous les salaires bruts reçus pendant le contrat, mois de fin inclus. Les sommes de rupture ayant le caractère de salaire, comme les congés payés, la régularisation et le préavis, sont ajoutées à la base. Entretien, repas et indemnité de rupture elle-même sont exclus.</p>
-            <div class="formula-chip">Base = salaires bruts de toute la période + congés/préavis/régularisation bruts soumis à cotisations</div>
+            <p>À partir de neuf mois, l’indemnité de rupture d’un CDI correspond à 1/80 de tous les salaires bruts reçus pendant le contrat, mois de fin inclus. Les éléments ayant le caractère de salaire entrent dans cette base une seule fois. Si le brut officiel du dernier mois contient déjà la régularisation, elle n’est pas rajoutée. Les congés compensateurs présentés séparément par Pajemploi sont ajoutés. Entretien, repas et indemnité de rupture elle-même sont exclus.</p>
+            <div class="formula-chip">Base = salaires bruts de toute la période + éléments bruts séparés non déjà compris</div>
             <p>Lorsqu’une régularisation de salaire est due, ses heures et jours non encore déclarés sont ajoutés aux valeurs mensualisées du dernier mois. Le nombre de jours est limité à 31, maximum accepté par Pajemploi.</p>
             <div class="formula-chip">Heures à ajouter = régularisation nette ÷ taux horaire net normal</div>
             <a href="https://www.service-public.gouv.fr/particuliers/vosdroits/F16842" target="_blank" rel="noopener noreferrer">Consulter la fiche officielle Service-Public <span aria-hidden="true">↗</span></a>
@@ -840,10 +796,10 @@
           <span class="calculation-rule-number">11</span>
           <div>
             <h3>CMG et reste à charge</h3>
-            <p>Depuis septembre 2025, le CMG emploi direct dépend des ressources CAF N−2, du nombre d’enfants à charge, du nombre d’heures et du coût horaire réel, qui inclut salaire, entretien et repas. Pour 2026, NounouCalc utilise le coût horaire de référence de 4,91 € et le plafond assistant maternel de 8,09 €.</p>
+            <p>Depuis septembre 2025, le CMG emploi direct dépend des ressources CAF N−2, du nombre d’enfants à charge, du nombre d’heures et du coût horaire réel, qui inclut salaire, entretien et repas. Les éléments de fin soumis à cotisations sont pris en compte même lorsqu’ils ont leur propre case. Seule l’indemnité de rupture, déclarée séparément et exonérée, reste hors CMG. Pour 2026, NounouCalc utilise le coût horaire de référence de 4,91 € et le plafond assistant maternel de 8,09 €.</p>
             <p>Chaque nouveau montant de ressources est enregistré avec son mois d’effet. Il ne modifie jamais les déclarations Pajemploi déjà confirmées et ne s’applique qu’aux mois concernés et suivants.</p>
             <p class="rule-note">Les ressources sont indispensables. Si elles ne sont pas renseignées, l’application affiche « À renseigner » au lieu d’utiliser arbitrairement la borne minimale.</p>
-            <a href="https://www.urssaf.fr/accueil/actualites/evolution-cmg-ce-qui-va-changer.html" target="_blank" rel="noopener noreferrer">Voir la formule officielle Urssaf <span aria-hidden="true">↗</span></a>
+            <a href="https://www.urssaf.fr/accueil/particulier/particulier-employeur/declarer-votre-salarie/particulier-aides-exonerations.html" target="_blank" rel="noopener noreferrer">Voir la formule officielle Urssaf <span aria-hidden="true">↗</span></a>
           </div>
         </article>
 

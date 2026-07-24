@@ -346,6 +346,35 @@ function setMonthlyValues(input) {
   for (const [key, id] of Object.entries(monthlyFields)) setValue(id, input?.[key]);
 }
 
+function normalizeMonthlyActivity(input, contract = state.contract) {
+  const normalized = { ...input };
+  const days = Math.max(0, number(normalized.actualDays));
+  const scheduledDays = scheduledDaysInMonth(contract, normalized.period);
+  const weeklyHours = number(contract.normalHoursPerWeek) + number(contract.majorHoursPerWeek);
+  const usualHoursPerDay = number(contract.daysPerWeek) > 0
+    ? weeklyHours / number(contract.daysPerWeek)
+    : 0;
+  const expectedHours = round(days * usualHoursPerDay, 2);
+  const scheduledHours = round(scheduledDays * usualHoursPerDay, 2);
+  const recordedHours = number(normalized.actualCareHours);
+
+  if (
+    normalized.actualCareHours === "" ||
+    normalized.actualCareHours == null ||
+    (days !== scheduledDays && Math.abs(recordedHours - scheduledHours) < 0.01)
+  ) {
+    normalized.actualCareHours = expectedHours;
+  }
+  if (
+    normalized.meals === "" ||
+    normalized.meals == null ||
+    (days !== scheduledDays && number(normalized.meals) === scheduledDays)
+  ) {
+    normalized.meals = days;
+  }
+  return normalized;
+}
+
 function monthlyInput() {
   return {
     ...Object.fromEntries(Object.entries(monthlyFields).map(([key, id]) => [
@@ -495,7 +524,7 @@ function loadMonth(period, simulationId = "") {
     if (index >= 0) bucket.simulations[index] = existing;
     saveState();
   }
-  const input = existing?.input || defaultMonthly(period);
+  const input = normalizeMonthlyActivity(existing?.input || defaultMonthly(period));
   fillCpReferenceOptions(period, input.cpReferenceKey);
   setMonthlyValues({ ...defaultMonthly(period), ...input });
   const simulationCount = bucket?.simulations?.length || 0;
@@ -603,7 +632,7 @@ function updateMonthlyEndVisibility(recalculate = true) {
 }
 
 function calculateMonthlyEndSuggestions() {
-  if ($("isEndContract").value !== "yes") return;
+  if ($("isEndContract").value !== "yes") return null;
   saveContract(false, false);
   const input = monthlyInput();
   if (!input.endDate) input.endDate = lastDay(input.period);
@@ -613,7 +642,6 @@ function calculateMonthlyEndSuggestions() {
     endingCpNet: "",
     endingCpDays: "",
     ruptureIndemnityNet: "",
-    noticeCompensationNet: 0,
     endingRegularizationNet: 0
   });
   const declarations = { ...officialDeclarations(), [input.period]: draft };
@@ -638,13 +666,15 @@ function calculateMonthlyEndSuggestions() {
   setValue("precariousnessGross", result.suggestedCddIndemnityGross);
   if (!$("legalRuptureAmount").value) setValue("legalRuptureAmount", result.suggestedRuptureIndemnity);
   $("endAutoInfo").innerHTML =
-    `<strong>Proposition automatique :</strong> ${result.leaveBalance.remainingDays.toLocaleString("fr-FR")} jours de congés à solder, ` +
+    `<strong>Solde calculé pour cette dernière déclaration :</strong> ${result.leaveBalance.remainingDays.toLocaleString("fr-FR")} jours de congés à solder, ` +
     `${money(result.suggestedCpCompensation)} de congés ` +
     `(maintien ${money(result.suggestedCpMaintenanceNet)} / dixième ${money(result.suggestedCpTenthNet)}), ` +
     `${money(result.suggestedRuptureIndemnity)} d’indemnité de rupture, ` +
     `${result.automaticRegularizationHours.toLocaleString("fr-FR")} h et ${result.automaticRegularizationDays.toLocaleString("fr-FR")} jours de régularisation à ajouter aux cases Pajemploi` +
-    (result.estimatedMonthsCount ? ` • ${result.estimatedMonthsCount} mois antérieurs estimés faute de déclaration confirmée.` : ".");
+    (result.estimatedMonthsCount ? ` • ${result.estimatedMonthsCount} mois antérieurs estimés faute de déclaration confirmée.` : ".") +
+    `<br><strong>Il n’y a aucun second calcul à faire :</strong> appuyez sur « (Re)Calculer » en bas de cette page pour intégrer ces montants au récapitulatif Pajemploi.`;
   updateAutomaticLeaveInfo();
+  return result;
 }
 
 function fillCpReferenceOptions(period, selectedKey = "") {
@@ -657,6 +687,7 @@ function fillCpReferenceOptions(period, selectedKey = "") {
 
 function calculateAndSave() {
   saveContract(false, false);
+  if ($("isEndContract").value === "yes") calculateMonthlyEndSuggestions();
   const input = monthlyInput();
   if (!input.period) return alert("Choisissez une période.");
   if (state.contract.startDate && `${input.period}-01` < state.contract.startDate.slice(0, 7) + "-01") {
@@ -667,26 +698,28 @@ function calculateAndSave() {
   }
   const results = calculateRecordResults(input);
   const bucket = monthBucket(input.period, true);
-  const id = currentSimulationId || makeId();
-  const isOfficial = bucket.officialId === id;
+  const officialWasOpen = Boolean(currentSimulationId && bucket.officialId === currentSimulationId);
+  const id = officialWasOpen ? makeId() : (currentSimulationId || makeId());
   const record = {
     id,
     input,
     results,
-    status: isOfficial ? "official" : "simulation",
+    status: "simulation",
     savedAt: new Date().toISOString(),
-    validatedAt: isOfficial ? currentRecord?.validatedAt || new Date().toISOString() : currentRecord?.validatedAt || null
+    validatedAt: officialWasOpen ? null : (currentRecord?.validatedAt || null)
   };
   const index = bucket.simulations.findIndex(item => item.id === id);
   if (index >= 0) bucket.simulations[index] = record;
   else bucket.simulations.push(record);
-  if (isOfficial) bucket.officialId = id;
   currentRecord = record;
   currentSimulationId = id;
   saveState();
   renderResults(record);
   renderHistory();
-  $("monthStatus").textContent = isOfficial ? "Confirmée sur Pajemploi" : "Simulation enregistrée";
+  $("monthStatus").textContent = officialWasOpen
+    ? "Nouvelle simulation • déclaration Pajemploi précédente conservée"
+    : "Simulation enregistrée";
+  if (officialWasOpen) toast("La déclaration Pajemploi confirmée est restée intacte. Une nouvelle simulation a été créée.");
   $("results").classList.remove("hidden");
   $("results").scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -856,7 +889,7 @@ function updateActualActivityDefaults() {
     ? days * weeklyHours / number(state.contract.daysPerWeek)
     : 0;
   setValue("actualCareHours", round(hours, 2));
-  if (!$("meals").value) setValue("meals", days);
+  setValue("meals", days);
 }
 
 function renderHistory() {
@@ -923,65 +956,6 @@ function deleteSimulation(period, id) {
   saveState();
   renderHistory();
   if ($("period").value === period && currentSimulationId === id) loadMonth(period);
-}
-
-function calculateEnding() {
-  saveContract(false, false);
-  const input = {
-    endDate: $("endDate").value,
-    reason: $("endReason").value,
-    regularizationDueNet: "",
-    regularizationPaidNet: "",
-    endingCpNet: "",
-    lastSalaryNet: ""
-  };
-  if (!input.endDate || !state.contract.startDate) return alert("Renseignez les dates de début et de fin du contrat.");
-  const declarations = { ...officialDeclarations() };
-  const endingPeriod = input.endDate.slice(0, 7);
-  let endingMonthEstimated = false;
-  if (!declarations[endingPeriod]) {
-    const endingDays = scheduledDaysInMonth(state.contract, endingPeriod, input.endDate);
-    const weeklyHours = number(state.contract.normalHoursPerWeek) + number(state.contract.majorHoursPerWeek);
-    const endingDraftInput = {
-      ...defaultMonthly(endingPeriod),
-      actualDays: endingDays,
-      actualCareHours: number(state.contract.daysPerWeek) > 0
-        ? round(endingDays * weeklyHours / number(state.contract.daysPerWeek), 2)
-        : 0,
-      meals: endingDays,
-      endDate: input.endDate,
-      monthNote: "Dernier mois estimé automatiquement pour la simulation de fin de contrat"
-    };
-    declarations[endingPeriod] = buildDraftRecord(endingDraftInput);
-    endingMonthEstimated = true;
-  }
-  const result = calculateEnd(state.contract, declarations, input);
-  $("endBreakdown").innerHTML = [
-    `<div class="end-row"><span>Ancienneté retenue</span><strong>${result.seniorityMonths} mois</strong></div>`,
-    `<div class="end-row"><span>Salaires bruts sur toute la durée du contrat</span><strong>${money(result.grossSalaryHistory)}</strong></div>`,
-    `<div class="end-row"><span>Éléments bruts de rupture soumis à cotisations<small>congés ${money(result.cpCompensationGrossForRupture)} • régularisation ${money(result.regularizationGrossForRupture)} • préavis ${money(result.noticeCompensationGrossForRupture)}</small></span><strong>${money(result.ruptureSalaryElementsGross)}</strong></div>`,
-    `<div class="end-row"><span>Base complète du 1/80</span><strong>${money(result.ruptureGrossBase)}</strong></div>`,
-    `<div class="end-row"><span>Indemnité de rupture CDI (base ÷ 80)</span><strong>${money(result.ruptureIndemnity)}</strong></div>`,
-    result.cddIndemnity ? `<div class="end-row"><span>Indemnité de fin de CDD (10 %)</span><strong>${money(result.cddIndemnity)}</strong></div>` : "",
-    `<div class="end-row"><span>Régularisation positive automatique<small>${money(result.regularizationDue)} dû au réel − ${money(result.regularizationPaid)} mensualisé</small></span><strong>${money(result.regularization)}</strong></div>`,
-    `<div class="end-row"><span>Équivalent déclaratif de la régularisation</span><strong>${result.automaticRegularizationHours.toLocaleString("fr-FR")} h • ${result.automaticRegularizationDays.toLocaleString("fr-FR")} jours</strong></div>`,
-    `<div class="end-row"><span>Indemnité compensatrice de congés<small>Plus favorable : maintien ${money(result.suggestedCpMaintenanceNet)} / dixième ${money(result.suggestedCpTenthNet)}</small></span><strong>${money(result.cpCompensation)}</strong></div>`,
-    `<div class="end-row"><span>Dernier salaire et indemnités d’accueil</span><strong>${money(result.lastSalary)}</strong></div>`
-  ].join("");
-  $("endTotal").textContent = money(result.total);
-  $("endLeaveDays").textContent = result.leaveBalance.remainingWithProjection.toLocaleString("fr-FR");
-  $("endLeaveDetail").textContent =
-    `${result.leaveBalance.acquiredDays.toLocaleString("fr-FR")} jours acquis automatiquement depuis le début du contrat. ` +
-    `${result.leaveBalance.paidDays.toLocaleString("fr-FR")} jours déjà payés sont déduits de leur période d’acquisition.`;
-  const notes = [];
-  if (!result.ruptureEligible && input.reason === "employer") notes.push("Pas d’indemnité de rupture calculée avant 9 mois d’ancienneté.");
-  if (result.grossMissing) notes.push("Le brut de certains mois est estimé depuis le net ; recopiez ensuite le brut des bulletins Pajemploi pour figer le 1/80 officiel.");
-  if (result.estimatedMonthsCount) notes.push(`${result.estimatedMonthsCount} mois sans déclaration confirmée ont été estimés avec la mensualisation contractuelle.`);
-  if (endingMonthEstimated) notes.push("Le dernier mois n’est pas encore confirmé : il est inclus automatiquement avec les jours programmés jusqu’à la date de fin. Corrigez les présences dans l’onglet Mois avant la déclaration définitive.");
-  if (number(state.contract.weeksPerYear) <= 46) notes.push("La régularisation ne peut être qu’à l’avantage de la salariée.");
-  notes.push("Préavis, certificat de travail, reçu pour solde et attestation France Travail restent à traiter sur Pajemploi.");
-  $("endNotes").textContent = notes.join(" ");
-  $("endResults").classList.remove("hidden");
 }
 
 function escapeHtml(value) {
@@ -1232,7 +1206,7 @@ function recalculateImportedState(importedState) {
     defaultState().cmgProfile;
   for (const [period, bucket] of Object.entries(importedState.declarations || {})) {
     for (const record of bucket?.simulations || []) {
-      record.input = { ...record.input, period };
+      record.input = normalizeMonthlyActivity({ ...record.input, period }, importedState.contract);
       if (
         record.input.isEndContract === "yes" &&
         (record.input.endingRegularizationHours === "" || record.input.endingRegularizationHours == null)
@@ -1309,6 +1283,7 @@ async function resetData() {
 }
 
 function showTab(name) {
+  if (!document.querySelector(`#tab-${name}`)) name = "monthly";
   if (name === "monthly" && contractDirty) {
     saveContract(false, true);
     toast("Contrat mis à jour. Vérifiez puis cliquez sur (Re)Calculer.");
@@ -1445,16 +1420,14 @@ $("newSimulationButton").addEventListener("click", newSimulation);
 $("isEndContract").addEventListener("change", () => updateMonthlyEndVisibility(true));
 $("endDateMonthly").addEventListener("change", calculateMonthlyEndSuggestions);
 $("endReasonMonthly").addEventListener("change", calculateMonthlyEndSuggestions);
-$("recalculateEndButton").addEventListener("click", calculateMonthlyEndSuggestions);
 $("leaveAdjustmentWeeks").addEventListener("input", updateAutomaticLeaveInfo);
-$("actualDays").addEventListener("change", updateActualActivityDefaults);
+$("actualDays").addEventListener("input", updateActualActivityDefaults);
 $("saveContractButton").addEventListener("click", () => saveContract(true));
 $("calculateButton").addEventListener("click", calculateAndSave);
 $("confirmOfficialButton").addEventListener("click", () => {
   if (!currentRecord || !currentSimulationId) return alert("Enregistrez d’abord cette simulation.");
   validateSimulation(currentRecord.input.period, currentSimulationId);
 });
-$("calculateEndButton").addEventListener("click", calculateEnding);
 $("printMonthly").addEventListener("click", () => window.print());
 $("printDossierButton").addEventListener("click", printEmployerDossier);
 $("exportButton").addEventListener("click", exportData);
