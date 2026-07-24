@@ -10,7 +10,8 @@ import {
   monthLabel,
   number,
   referencePeriod,
-  round
+  round,
+  scheduledDaysInMonth
 } from "./core.mjs";
 
 const STORAGE_KEY = "nounoucalc_v2";
@@ -29,20 +30,46 @@ const $ = id => document.getElementById(id);
 const contractIds = [
   "startDate", "contractType", "weeksPerYear", "daysPerWeek", "normalHoursPerWeek",
   "majorHoursPerWeek", "netHourlyRate", "grossHourlyRate", "majorMarkup",
-  "complementaryMarkup", "maintenanceRate", "mealRate", "cpPaymentMode", "cpPaymentMonth"
+  "complementaryMarkup", "maintenanceRate", "mealRate", "employeeDependentChildrenUnder15",
+  "cpPaymentMode", "cpPaymentMonth"
 ];
 const adminIds = [
   "employerName", "employerPajemploi", "employerAddress", "employeeName", "employeeNumber",
   "employeeAddress", "approvalNumber", "childName", "childBirthDate"
 ];
 const cmgIds = ["annualResourcesN2", "dependentChildren", "aeeh"];
-const monthlyIds = [
-  "period", "paymentDate", "actualDays", "meals", "equivalentWeeks", "complementaryHours",
-  "extraMajorHours", "absenceDeductionNet", "otherSalaryNet", "cpDaysDeclared", "cpPaidNet",
-  "cpReferenceKey",
-  "kilometerAllowance", "advancePaid", "specificHours", "over24Hours", "disabilityCare",
-  "officialGross", "officialCmg", "officialPajemploiDebit", "monthNote"
-];
+const monthlyFields = {
+  period: "period",
+  paymentDate: "paymentDate",
+  actualDays: "actualDays",
+  meals: "meals",
+  complementaryHours: "complementaryHours",
+  extraMajorHours: "extraMajorHours",
+  absenceDeductionNet: "absenceDeductionNet",
+  otherSalaryNet: "otherSalaryNet",
+  leaveAdjustmentWeeks: "leaveAdjustmentWeeks",
+  cpDaysDeclared: "cpDaysDeclared",
+  cpPaidNet: "cpPaidNet",
+  cpReferenceKey: "cpReferenceKey",
+  kilometerAllowance: "kilometerAllowance",
+  advancePaid: "advancePaid",
+  specificHours: "specificHours",
+  over24Hours: "over24Hours",
+  disabilityCare: "disabilityCare",
+  isEndContract: "isEndContract",
+  endDate: "endDateMonthly",
+  endReason: "endReasonMonthly",
+  precariousnessNet: "precariousnessNet",
+  endingCpNet: "endingCpNetMonthly",
+  endingCpDays: "endingCpDays",
+  noticeCompensationNet: "noticeCompensationNet",
+  ruptureIndemnityNet: "ruptureIndemnityNet",
+  endingRegularizationNet: "endingRegularizationNet",
+  officialGross: "officialGross",
+  officialCmg: "officialCmg",
+  officialPajemploiDebit: "officialPajemploiDebit",
+  monthNote: "monthNote"
+};
 
 let state = loadState();
 let currentRecord = null;
@@ -240,6 +267,20 @@ function readValues(ids) {
   return Object.fromEntries(ids.map(id => [id, $(id).type === "checkbox" ? $(id).checked : $(id).value]));
 }
 
+function setMonthlyValues(input) {
+  for (const [key, id] of Object.entries(monthlyFields)) setValue(id, input?.[key]);
+}
+
+function monthlyInput() {
+  return {
+    ...Object.fromEntries(Object.entries(monthlyFields).map(([key, id]) => [
+      key,
+      $(id).type === "checkbox" ? $(id).checked : $(id).value
+    ])),
+    autoLeaveAccrual: true
+  };
+}
+
 function fillContract() {
   contractIds.forEach(id => setValue(id, state.contract[id]));
   adminIds.forEach(id => setValue(id, state.admin[id]));
@@ -258,19 +299,20 @@ function saveContract(showMessage = true) {
 }
 
 function defaultMonthly(period) {
-  const weeks = number(state.contract.weeksPerYear, 46) / 12;
   const ref = referencePeriod(period);
   const selectedMonth = number(period.split("-")[1]);
   const paymentMonth = number(state.contract.cpPaymentMonth, 6);
   const paidReferenceKey = state.contract.cpPaymentMode === "june" && selectedMonth === paymentMonth
     ? String(number(ref.key) - 1)
     : ref.key;
+  const proposedDays = scheduledDaysInMonth(state.contract, period);
   return {
     period,
     paymentDate: lastDay(period),
-    actualDays: "",
-    meals: "",
-    equivalentWeeks: round(weeks, 2),
+    actualDays: proposedDays,
+    meals: proposedDays,
+    autoLeaveAccrual: true,
+    leaveAdjustmentWeeks: 0,
     complementaryHours: 0,
     extraMajorHours: 0,
     absenceDeductionNet: 0,
@@ -283,7 +325,15 @@ function defaultMonthly(period) {
     specificHours: "no",
     over24Hours: "no",
     disabilityCare: "no",
-    markAsOfficial: false,
+    isEndContract: "no",
+    endDate: lastDay(period),
+    endReason: state.contract.contractType === "CDD" ? "cdd" : "employer",
+    precariousnessNet: "",
+    endingCpNet: "",
+    endingCpDays: "",
+    noticeCompensationNet: 0,
+    ruptureIndemnityNet: "",
+    endingRegularizationNet: 0,
     officialGross: "",
     officialCmg: "",
     officialPajemploiDebit: "",
@@ -314,29 +364,110 @@ function loadMonth(period, simulationId = "") {
     bucket?.simulations?.[bucket.simulations.length - 1];
   const input = existing?.input || defaultMonthly(period);
   fillCpReferenceOptions(period, input.cpReferenceKey);
-  monthlyIds.forEach(id => setValue(id, input[id]));
-  setValue("markAsOfficial", existing?.id === bucket?.officialId);
+  setMonthlyValues({ ...defaultMonthly(period), ...input });
   const simulationCount = bucket?.simulations?.length || 0;
-  $("monthStatus").textContent = existing?.id === bucket?.officialId
+  $("monthStatus").textContent = existing && existing.id === bucket?.officialId
     ? "Validée sur Pajemploi"
     : simulationCount ? `${simulationCount} simulation${simulationCount > 1 ? "s" : ""}` : "Nouveau mois";
   currentRecord = existing || null;
   currentSimulationId = existing?.id || null;
+  updateMonthlyEndVisibility(false);
   updatePeriodHints();
+  updateAutomaticLeaveInfo();
   if (existing) renderResults(existing);
   else $("results").classList.add("hidden");
 }
 
 function newSimulation() {
   const period = $("period").value || currentMonth();
-  const input = defaultMonthly(period);
+  const source = monthlyInput();
+  const input = source.period === period ? {
+    ...source,
+    officialGross: "",
+    officialCmg: "",
+    officialPajemploiDebit: "",
+    monthNote: source.monthNote ? `${source.monthNote} — variante` : ""
+  } : defaultMonthly(period);
   fillCpReferenceOptions(period, input.cpReferenceKey);
-  monthlyIds.forEach(id => setValue(id, input[id]));
-  setValue("markAsOfficial", false);
+  setMonthlyValues(input);
   currentRecord = null;
   currentSimulationId = null;
-  $("monthStatus").textContent = "Nouvelle simulation";
+  $("monthStatus").textContent = "Variante non enregistrée";
   $("results").classList.add("hidden");
+  updateMonthlyEndVisibility(false);
+  updateAutomaticLeaveInfo();
+  toast("Variante dupliquée. Modifiez seulement les valeurs à comparer.");
+}
+
+function buildDraftRecord(input = monthlyInput()) {
+  const results = calculateDeclaration(state.contract, input);
+  return { period: input.period, input, results };
+}
+
+function updateAutomaticLeaveInfo() {
+  const input = monthlyInput();
+  if (!input.period || !state.contract.startDate) {
+    $("automaticLeaveInfo").textContent = "Renseignez la date de début du contrat pour activer le calcul automatique des congés.";
+    return;
+  }
+  const untilDate = input.isEndContract === "yes" && input.endDate ? input.endDate : lastDay(input.period);
+  const summary = leaveSummary(state.contract, officialDeclarations(), input.period, buildDraftRecord(input), untilDate);
+  $("automaticLeaveInfo").innerHTML =
+    `<strong>Congés automatiques :</strong> ${summary.monthAcquiredRaw.toLocaleString("fr-FR")} jour ce mois ` +
+    `(${summary.monthEquivalentWeeks.toLocaleString("fr-FR")} semaines équivalentes). ` +
+    `Depuis le ${new Date(`${state.contract.startDate}T12:00:00`).toLocaleDateString("fr-FR")} : ` +
+    `<strong>${summary.ledger.acquiredDays.toLocaleString("fr-FR")} acquis</strong>, ` +
+    `${summary.ledger.paidDays.toLocaleString("fr-FR")} payés, ` +
+    `<strong>${summary.ledger.remainingDays.toLocaleString("fr-FR")} restant à rémunérer</strong>.`;
+}
+
+function updateMonthlyEndVisibility(recalculate = true) {
+  const active = $("isEndContract").value === "yes";
+  $("monthlyEndFields").classList.toggle("hidden", !active);
+  if (active) {
+    $("monthlyEndCard").open = true;
+    if (!$("endDateMonthly").value) $("endDateMonthly").value = lastDay($("period").value);
+    if (recalculate) calculateMonthlyEndSuggestions();
+  }
+  updateAutomaticLeaveInfo();
+}
+
+function calculateMonthlyEndSuggestions() {
+  if ($("isEndContract").value !== "yes") return;
+  saveContract(false);
+  const input = monthlyInput();
+  if (!input.endDate) input.endDate = lastDay(input.period);
+  const draft = buildDraftRecord({
+    ...input,
+    precariousnessNet: "",
+    endingCpNet: "",
+    endingCpDays: "",
+    ruptureIndemnityNet: "",
+    noticeCompensationNet: 0,
+    endingRegularizationNet: 0
+  });
+  const declarations = { ...officialDeclarations(), [input.period]: draft };
+  const result = calculateEnd(state.contract, declarations, {
+    endDate: input.endDate,
+    reason: input.endReason,
+    regularizationDueNet: 0,
+    regularizationPaidNet: 0,
+    endingCpNet: "",
+    lastSalaryNet: 0,
+    ruptureIndemnityNet: "",
+    precariousnessNet: ""
+  });
+  setValue("precariousnessNet", result.suggestedCddIndemnity);
+  setValue("endingCpNetMonthly", result.suggestedCpCompensation);
+  setValue("endingCpDays", result.leaveBalance.remainingDays);
+  setValue("ruptureIndemnityNet", result.suggestedRuptureIndemnity);
+  $("endAutoInfo").innerHTML =
+    `<strong>Proposition automatique :</strong> ${result.leaveBalance.remainingDays.toLocaleString("fr-FR")} jours de congés à solder, ` +
+    `${money(result.suggestedCpCompensation)} de congés ` +
+    `(maintien ${money(result.suggestedCpMaintenanceNet)} / dixième ${money(result.suggestedCpTenthNet)}), ` +
+    `${money(result.suggestedRuptureIndemnity)} d’indemnité de rupture` +
+    (result.estimatedMonthsCount ? ` • ${result.estimatedMonthsCount} mois antérieurs estimés faute de déclaration confirmée.` : ".");
+  updateAutomaticLeaveInfo();
 }
 
 function fillCpReferenceOptions(period, selectedKey = "") {
@@ -345,10 +476,6 @@ function fillCpReferenceOptions(period, selectedKey = "") {
     `<option value="${key}">1er juin ${key} – 31 mai ${key + 1}</option>`
   ).join("");
   $("cpReferenceKey").value = selectedKey || String(currentKey);
-}
-
-function monthlyInput() {
-  return readValues(monthlyIds);
 }
 
 function calculateAndSave() {
@@ -367,30 +494,25 @@ function calculateAndSave() {
   results.cmg.officialPajemploiDebit = number(input.officialPajemploiDebit);
   const bucket = monthBucket(input.period, true);
   const id = currentSimulationId || makeId();
-  const isOfficial = $("markAsOfficial").checked;
+  const isOfficial = bucket.officialId === id;
   const record = {
     id,
     input,
     results,
     status: isOfficial ? "official" : "simulation",
     savedAt: new Date().toISOString(),
-    validatedAt: isOfficial ? new Date().toISOString() : currentRecord?.validatedAt || null
+    validatedAt: isOfficial ? currentRecord?.validatedAt || new Date().toISOString() : currentRecord?.validatedAt || null
   };
   const index = bucket.simulations.findIndex(item => item.id === id);
   if (index >= 0) bucket.simulations[index] = record;
   else bucket.simulations.push(record);
-  if (isOfficial) {
-    bucket.officialId = id;
-    bucket.simulations.forEach(item => { if (item.id !== id && item.status === "official") item.status = "simulation"; });
-  } else if (bucket.officialId === id) {
-    bucket.officialId = null;
-  }
+  if (isOfficial) bucket.officialId = id;
   currentRecord = record;
   currentSimulationId = id;
   saveState();
   renderResults(record);
   renderHistory();
-  $("monthStatus").textContent = isOfficial ? "Validée sur Pajemploi" : "Simulation enregistrée";
+  $("monthStatus").textContent = isOfficial ? "Confirmée sur Pajemploi" : "Simulation enregistrée";
   $("results").classList.remove("hidden");
   $("results").scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -438,6 +560,10 @@ function renderResults(record) {
     salary.complementaryNet ? row("Heures complémentaires", salary.complementaryNet, `${input.complementaryHours} h × ${compRate}`) : "",
     salary.extraMajorNet ? row("Heures majorées supplémentaires", salary.extraMajorNet, `${input.extraMajorHours} h × ${majorRate}`) : "",
     salary.cpPaidNet ? row("Congés payés", salary.cpPaidNet) : "",
+    salary.endingCpNet ? row("Indemnité compensatrice de congés", salary.endingCpNet) : "",
+    salary.noticeCompensationNet ? row("Indemnité compensatrice de préavis", salary.noticeCompensationNet) : "",
+    salary.precariousnessNet ? row("Prime de précarité", salary.precariousnessNet) : "",
+    salary.regularizationNet ? row("Régularisation de salaire", salary.regularizationNet) : "",
     salary.otherSalaryNet ? row("Autre élément de salaire", salary.otherSalaryNet) : "",
     salary.absenceDeductionNet ? row("Déduction d’absence", -salary.absenceDeductionNet) : "",
     row("Salaire net à déclarer", salary.netSalary)
@@ -448,19 +574,52 @@ function renderResults(record) {
     `<div class="breakdown-row"><span>Heures spécifiques</span><strong>${answer(results.additional.specificHours)}</strong></div>`,
     `<div class="breakdown-row"><span>Garde de plus de 24 h consécutives</span><strong>${answer(results.additional.over24Hours)}</strong></div>`,
     `<div class="breakdown-row"><span>Handicap, longue maladie ou inadaptation</span><strong>${answer(results.additional.disabilityCare)}</strong></div>`,
-    `<div class="breakdown-row"><span>Fin de contrat</span><strong>Non</strong></div>`
+    `<div class="breakdown-row"><span>Fin de contrat</span><strong>${answer(results.additional.endContract)}</strong></div>`
   ].join("");
+
+  $("outEndBreakdownCard").classList.toggle("hidden", !results.ending?.active);
+  if (results.ending?.active) {
+    $("outEndBreakdown").innerHTML = [
+      `<div class="breakdown-row"><span>Date de fin</span><strong>${new Date(`${results.ending.endDate}T12:00:00`).toLocaleDateString("fr-FR")}</strong></div>`,
+      row("Prime de précarité", results.ending.precariousnessNet),
+      row("Indemnité compensatrice de congés", results.ending.cpCompensationNet, `${results.ending.cpDays} jours soldés`),
+      row("Indemnité compensatrice de préavis", results.ending.noticeCompensationNet),
+      row("Indemnité de rupture", results.ending.ruptureIndemnityNet),
+      row("Régularisation de salaire", results.ending.regularizationNet),
+      row("Total des éléments de fin", results.ending.total)
+    ].join("");
+  }
 
   const confirmed = officialDeclarations();
   const draft = currentRecord?.id === monthBucket(input.period)?.officialId
     ? null
     : { period: input.period, input, results };
-  const summary = leaveSummary(confirmed, input.period, draft);
+  const untilDate = input.isEndContract === "yes" && input.endDate ? input.endDate : lastDay(input.period);
+  const summary = leaveSummary(state.contract, confirmed, input.period, draft, untilDate);
   $("outReferencePeriod").textContent = summary.reference.label;
   $("outCpAcquired").textContent = summary.acquiredRaw.toLocaleString("fr-FR");
   $("outCpPaid").textContent = summary.paidDays.toLocaleString("fr-FR");
+  $("outCpMonthAcquired").textContent = summary.monthAcquiredRaw.toLocaleString("fr-FR");
+  $("outCpGlobalAcquired").textContent = summary.ledger.acquiredDays.toLocaleString("fr-FR");
+  $("outCpGlobalPaid").textContent = summary.ledger.paidDays.toLocaleString("fr-FR");
+  $("outCpGlobalRemaining").textContent = summary.ledger.remainingDays.toLocaleString("fr-FR");
   $("cpProgress").style.width = `${Math.min(100, summary.acquiredRaw / 30 * 100)}%`;
+  renderOfficialConfirmation(record);
   $("results").classList.remove("hidden");
+}
+
+function renderOfficialConfirmation(record) {
+  const bucket = monthBucket(record.input.period);
+  const official = bucket?.officialId === record.id;
+  $("officialConfirmation").classList.toggle("is-official", official);
+  $("officialConfirmationTitle").textContent = official
+    ? "Déclaration confirmée comme réellement saisie sur Pajemploi"
+    : "Cette version est encore une simulation";
+  $("officialConfirmationText").textContent = official
+    ? `Confirmée le ${new Date(record.validatedAt || record.savedAt).toLocaleDateString("fr-FR")}. Elle alimente l’historique officiel, les congés et la fin de contrat.`
+    : "Enregistrez et comparez librement plusieurs variantes. Seule la version confirmée alimentera les calculs futurs.";
+  $("confirmOfficialButton").textContent = official ? "Déclaration confirmée" : "Confirmer la saisie sur Pajemploi";
+  $("confirmOfficialButton").disabled = official;
 }
 
 function updateContractPreview() {
@@ -511,14 +670,16 @@ function renderHistory() {
       record.input.monthNote || `${isOfficial ? "Validée" : "Enregistrée"} le ${new Date(isOfficial ? record.validatedAt : record.savedAt).toLocaleDateString("fr-FR")}`;
     fragment.querySelector(".history-numbers").textContent =
       `${record.results.declared.days} j mensualisés • ${record.input.actualDays || 0} j réels • ` +
-      `${record.results.declared.normalHours} h normales • ${money(record.results.totalToPay)} • coût famille ${money(record.results.cmg?.officialPajemploiDebit || record.results.cmg?.estimatedOutOfPocket)}`;
+      `${record.results.declared.normalHours} h normales • ${money(record.results.totalToPay)}` +
+      (record.results.ending?.active ? ` • fin de contrat ${new Date(`${record.results.ending.endDate}T12:00:00`).toLocaleDateString("fr-FR")}` : "") +
+      ` • coût famille ${money(record.results.cmg?.officialPajemploiDebit || record.results.cmg?.estimatedOutOfPocket)}`;
     fragment.querySelector(".history-edit").addEventListener("click", () => {
       showTab("monthly");
       loadMonth(period, record.id);
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
     const officialButton = fragment.querySelector(".history-official");
-    officialButton.textContent = isOfficial ? "Validée" : "Valider Pajemploi";
+    officialButton.textContent = isOfficial ? "Confirmée" : "Confirmer Pajemploi";
     officialButton.disabled = isOfficial;
     officialButton.addEventListener("click", () => validateSimulation(period, record.id));
     fragment.querySelector(".history-delete").addEventListener("click", () => deleteSimulation(period, record.id));
@@ -527,7 +688,7 @@ function renderHistory() {
 }
 
 function validateSimulation(period, id) {
-  if (!confirm(`Confirmer que cette simulation de ${monthLabel(period)} a été saisie et validée sur Pajemploi ?`)) return;
+  if (!confirm(`Confirmer que cette version de ${monthLabel(period)} est exactement celle saisie et validée sur Pajemploi ? Elle deviendra la référence pour les congés et la fin de contrat.`)) return;
   const bucket = monthBucket(period);
   const record = bucket?.simulations?.find(item => item.id === id);
   if (!record) return;
@@ -539,6 +700,7 @@ function validateSimulation(period, id) {
   saveState();
   renderHistory();
   if ($("period").value === period && currentSimulationId === id) loadMonth(period, id);
+  toast("Déclaration Pajemploi confirmée. Elle alimente désormais l’historique officiel.");
 }
 
 function deleteSimulation(period, id) {
@@ -561,7 +723,6 @@ function calculateEnding() {
     regularizationDueNet: $("regularizationDueNet").value,
     regularizationPaidNet: $("regularizationPaidNet").value,
     endingCpNet: $("endingCpNet").value,
-    endingEquivalentWeeks: $("endingEquivalentWeeks").value,
     lastSalaryNet: $("lastSalaryNet").value
   };
   if (!input.endDate || !state.contract.startDate) return alert("Renseignez les dates de début et de fin du contrat.");
@@ -578,14 +739,12 @@ function calculateEnding() {
   $("endTotal").textContent = money(result.total);
   $("endLeaveDays").textContent = result.leaveBalance.remainingWithProjection.toLocaleString("fr-FR");
   $("endLeaveDetail").textContent =
-    `${result.leaveBalance.acquiredDays.toLocaleString("fr-FR")} jours acquis dans les mois historisés. ` +
-    `${result.leaveBalance.paidDays.toLocaleString("fr-FR")} jours payés sont déduits uniquement de leur période d’acquisition` +
-    (result.leaveBalance.projectedAcquiredDays
-      ? ` + ${result.leaveBalance.projectedAcquiredDays.toLocaleString("fr-FR")} jours projetés depuis la dernière déclaration.`
-      : ".");
+    `${result.leaveBalance.acquiredDays.toLocaleString("fr-FR")} jours acquis automatiquement depuis le début du contrat. ` +
+    `${result.leaveBalance.paidDays.toLocaleString("fr-FR")} jours déjà payés sont déduits de leur période d’acquisition.`;
   const notes = [];
   if (!result.ruptureEligible && input.reason === "employer") notes.push("Pas d’indemnité de rupture calculée avant 9 mois d’ancienneté.");
   if (result.grossMissing) notes.push("Au moins un mois n’a pas de salaire brut : le 1/80 est incomplet.");
+  if (result.estimatedMonthsCount) notes.push(`${result.estimatedMonthsCount} mois sans déclaration confirmée ont été estimés avec la mensualisation contractuelle.`);
   if (number(state.contract.weeksPerYear) <= 46) notes.push("La régularisation ne peut être qu’à l’avantage de la salariée.");
   notes.push("Préavis, certificat de travail, reçu pour solde et attestation France Travail restent à traiter sur Pajemploi.");
   $("endNotes").textContent = notes.join(" ");
@@ -602,6 +761,18 @@ function printEmployerDossier() {
   saveContract(false);
   const records = Object.entries(officialDeclarations()).sort(([a], [b]) => a.localeCompare(b));
   const basis = contractBasis(state.contract);
+  const endReasonLabels = {
+    employer: "Retrait de l’enfant",
+    employee: "Démission",
+    death: "Décès de l’enfant",
+    childDeath: "Décès de l’enfant",
+    serious: "Faute grave ou lourde",
+    seriousMisconduct: "Faute grave ou lourde",
+    approval: "Retrait ou suspension d’agrément",
+    cdd: "Fin de CDD",
+    agreement: "Autre motif",
+    other: "Autre motif"
+  };
   const rows = records.map(([period, record]) => `
     <tr>
       <td>${escapeHtml(monthLabel(period))}</td>
@@ -617,6 +788,22 @@ function printEmployerDossier() {
       <td>${money(record.results.cmg?.officialCmg || record.results.cmg?.estimatedCmg)}</td>
       <td>${money(record.results.cmg?.officialPajemploiDebit || record.results.cmg?.estimatedOutOfPocket)}</td>
     </tr>`).join("");
+  const endRows = records
+    .filter(([, record]) => record.results.ending?.active)
+    .map(([period, record]) => {
+      const ending = record.results.ending;
+      return `<tr>
+        <td>${escapeHtml(monthLabel(period))}</td>
+        <td>${escapeHtml(new Date(`${ending.endDate}T12:00:00`).toLocaleDateString("fr-FR"))}</td>
+        <td>${escapeHtml(endReasonLabels[ending.reason] || ending.reason || "—")}</td>
+        <td>${ending.cpDays.toLocaleString("fr-FR")} j • ${money(ending.cpCompensationNet)}</td>
+        <td>${money(ending.noticeCompensationNet)}</td>
+        <td>${money(ending.precariousnessNet)}</td>
+        <td>${money(ending.ruptureIndemnityNet)}</td>
+        <td>${money(ending.regularizationNet)}</td>
+        <td>${money(ending.total)}</td>
+      </tr>`;
+    }).join("");
   const totals = records.reduce((sum, [, record]) => ({
     paid: sum.paid + number(record.results.totalToPay),
     cmg: sum.cmg + number(record.results.cmg?.officialCmg || record.results.cmg?.estimatedCmg),
@@ -650,6 +837,9 @@ function printEmployerDossier() {
     <table><thead><tr><th>Mois</th><th>Jours mens.</th><th>Jours réels</th><th>H normales</th><th>H compl.</th><th>H maj.</th><th>CP jours</th><th>Salaire net</th><th>Indemnités</th><th>Payé salariée</th><th>CMG estimé</th><th>Coût famille</th></tr></thead>
     <tbody>${rows || '<tr><td colspan="12">Aucune déclaration confirmée.</td></tr>'}</tbody></table>
     <div class="totals"><strong>Total versé : ${money(totals.paid)}</strong><strong>CMG estimé : ${money(totals.cmg)}</strong><strong>Coût famille estimé : ${money(totals.family)}</strong></div>
+    ${endRows ? `<h2>Fin de contrat déclarée</h2>
+    <table><thead><tr><th>Mois</th><th>Date</th><th>Motif</th><th>Congés soldés</th><th>Préavis</th><th>Précarité</th><th>Rupture</th><th>Régularisation</th><th>Total fin</th></tr></thead>
+    <tbody>${endRows}</tbody></table>` : ""}
     <footer>Ce document est un registre employeur généré à partir des validations saisies dans NounouCalc. Il ne remplace ni le bulletin de salaire ni les attestations officielles produits par l’Urssaf service Pajemploi.</footer>
     <script>window.onload=()=>window.print()<\/script></body></html>`);
   report.document.close();
@@ -745,7 +935,6 @@ function preservePendingDraft() {
     period,
     input: monthlyInput(),
     simulationId: currentSimulationId,
-    markAsOfficial: $("markAsOfficial").checked,
     tab: [...document.querySelectorAll(".tab")].find(item => item.classList.contains("active"))?.dataset.tab || "monthly"
   }));
 }
@@ -759,14 +948,15 @@ function restorePendingDraft() {
     if (!draft?.period || !draft.input) return;
     showTab(draft.tab || "monthly");
     fillCpReferenceOptions(draft.period, draft.input.cpReferenceKey);
-    monthlyIds.forEach(id => setValue(id, draft.input[id]));
-    setValue("markAsOfficial", draft.markAsOfficial);
+    setMonthlyValues({ ...defaultMonthly(draft.period), ...draft.input });
     currentSimulationId = draft.simulationId || null;
     currentRecord = currentSimulationId
       ? monthBucket(draft.period)?.simulations?.find(item => item.id === currentSimulationId) || null
       : null;
     $("monthStatus").textContent = "Brouillon restauré après mise à jour";
     $("results").classList.add("hidden");
+    updateMonthlyEndVisibility(false);
+    updateAutomaticLeaveInfo();
     updatePeriodHints();
     toast("Mise à jour installée sans perdre le brouillon en cours.");
   } catch (error) {
@@ -839,11 +1029,23 @@ async function initialize() {
 }
 
 document.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", () => showTab(tab.dataset.tab)));
-contractIds.forEach(id => $(id).addEventListener("input", updateContractPreview));
+contractIds.forEach(id => $(id).addEventListener("input", () => {
+  updateContractPreview();
+  updateAutomaticLeaveInfo();
+}));
 $("period").addEventListener("change", event => loadMonth(event.target.value));
 $("newSimulationButton").addEventListener("click", newSimulation);
+$("isEndContract").addEventListener("change", () => updateMonthlyEndVisibility(true));
+$("endDateMonthly").addEventListener("change", calculateMonthlyEndSuggestions);
+$("endReasonMonthly").addEventListener("change", calculateMonthlyEndSuggestions);
+$("recalculateEndButton").addEventListener("click", calculateMonthlyEndSuggestions);
+$("leaveAdjustmentWeeks").addEventListener("input", updateAutomaticLeaveInfo);
 $("saveContractButton").addEventListener("click", () => saveContract(true));
 $("calculateButton").addEventListener("click", calculateAndSave);
+$("confirmOfficialButton").addEventListener("click", () => {
+  if (!currentRecord || !currentSimulationId) return alert("Enregistrez d’abord cette simulation.");
+  validateSimulation(currentRecord.input.period, currentSimulationId);
+});
 $("calculateEndButton").addEventListener("click", calculateEnding);
 $("printMonthly").addEventListener("click", () => window.print());
 $("printDossierButton").addEventListener("click", printEmployerDossier);

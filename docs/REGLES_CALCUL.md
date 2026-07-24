@@ -40,13 +40,17 @@ Pour une garde mensualisée, le nombre de jours déclaré est le nombre de jours
 
 Le nombre exact est arrondi à l’entier le plus proche pour la saisie, comme dans le modèle NounouTop fourni (19 jours mensualisés). Le nombre de jours réellement gardés reste saisi séparément et sert exclusivement aux indemnités d’entretien. Le nombre de jours avec repas est également distinct.
 
+Lors de la création d’un mois, NounouCalc propose par défaut les jours d’accueil programmés qui tombent du lundi au vendredi dans la période sélectionnée. Pour un contrat de cinq jours, juillet 2026 propose donc 23 jours, ou 18 jours si le contrat se termine le 24 juillet. Cette proposition doit être corrigée selon les présences réelles ; elle ne remplace pas le calendrier de garde.
+
 En cas d’absence non rémunérée, la déclaration peut demander des valeurs réelles spécifiques. NounouCalc laisse alors la déduction nette à saisir et affiche un avertissement ; une future version pourra intégrer le calcul conventionnel complet selon le planning.
 
 ## 4. Congés payés
 
-La période de référence va du 1er juin au 31 mai. Le droit provisoire est suivi à raison de 2,5 jours ouvrables par période de quatre semaines d’accueil, dans la limite de 30 jours.
+La période de référence va du 1er juin au 31 mai. Pour une année complète de 52 semaines, 2,5 jours ouvrables sont acquis par mois de travail effectif. Pour un accueil sur 46 semaines ou moins, l’acquisition est calculée par tranches ou équivalents de quatre semaines. Les droits annuels sont plafonnés à 30 jours.
 
-Le nombre acquis affiché en cours de période garde ses décimales. L’arrondi au jour entier supérieur n’est calculé qu’au bilan de période.
+Le compteur est reconstruit automatiquement depuis la date de début du contrat, y compris lorsqu’aucune déclaration antérieure n’existe dans l’application. Pour les mois enregistrés d’un accueil sur 46 semaines ou moins, les semaines équivalentes sont obtenues en divisant les jours d’accueil réels par les jours d’accueil hebdomadaires : 22 jours sur 5 jours par semaine donnent 4,4 semaines, donc 2,75 jours acquis, comme dans la capture NounouTop de juin 2026. Les mois anciens absents de l’historique sont projetés en répartissant les semaines contractuelles sur douze mois. Un premier ou dernier mois incomplet est proratisé. Si une absence assimilée ou un planning particulier rend les jours réels insuffisants pour représenter l’acquisition, le champ « Ajustement des semaines équivalentes » corrige uniquement le mois concerné.
+
+Le nombre acquis affiché en cours de période garde ses décimales. L’arrondi au jour entier supérieur est appliqué au bilan d’une période de référence clôturée. Les éventuels jours supplémentaires pour enfant à charge de moins de 15 ans sont ajoutés à ce bilan, sans pouvoir dépasser 30 jours au total.
 
 Lorsqu’une indemnité de congés payés est versée, son montant net est aussi converti en heures au taux normal et ajouté aux heures normales à déclarer :
 
@@ -57,7 +61,7 @@ heures normales à déclarer = arrondi(heures normales mensualisées + heures é
 
 Cette règle explique le passage de 165 heures normales en mai à 367 heures en juin dans les captures NounouTop transmises.
 
-Chaque paiement est rattaché à la période pendant laquelle les droits ont été acquis. Ainsi, un paiement déclaré en juin règle normalement les droits de la période terminée le 31 mai ; il ne diminue pas les nouveaux droits acquis depuis le 1er juin.
+Chaque paiement ordinaire est rattaché à la période pendant laquelle les droits ont été acquis. Ainsi, un paiement déclaré en juin règle normalement les droits de la période terminée le 31 mai ; il ne diminue pas les nouveaux droits acquis depuis le 1er juin. Lors d’une fin de contrat, les jours soldés sont affectés automatiquement aux droits impayés les plus anciens, puis à la période en cours.
 
 Exemple de fin de contrat en août :
 
@@ -69,7 +73,7 @@ droits restant après paiement de juin
 = jours restant à indemniser à la rupture
 ```
 
-La simulation de fin de contrat additionne les droits historisés et permet d’ajouter des semaines équivalentes non encore enregistrées. Le montant de l’indemnité compensatrice reste calculé par comparaison du maintien de salaire et du dixième ; il est donc saisi séparément.
+La simulation de fin de contrat additionne automatiquement les droits acquis jusqu’à la date de fin et déduit les jours déjà payés dans les seules déclarations Pajemploi confirmées. Elle propose l’indemnité compensatrice la plus favorable entre le maintien de salaire et le dixième. La proposition reste modifiable avant enregistrement.
 
 Pour un accueil sur 46 semaines ou moins, le montant est calculé au 31 mai par comparaison entre :
 
@@ -92,7 +96,9 @@ Pour une fin de CDD, l’outil affiche 10 % de la rémunération brute historis�
 
 En accueil sur 46 semaines ou moins, la régularisation compare le salaire dû au réel et les mensualisations déjà versées. Seule une différence favorable à la salariée est ajoutée.
 
-L’indemnité compensatrice de congés payés et le dernier salaire sont saisis séparément, car ils dépendent du planning et des droits réellement restants.
+La fin de contrat est intégrée à la déclaration du dernier mois. Les champs proposés correspondent à la rubrique Pajemploi : date et motif de fin, prime de précarité, indemnité compensatrice de congés payés et jours soldés, indemnité compensatrice de préavis, indemnité de rupture et régularisation de salaire.
+
+L’indemnité compensatrice de congés, le préavis, la précarité et la régularisation sont ajoutés au salaire net déclaré. L’indemnité de rupture est ajoutée au total à verser mais reste isolée dans le récapitulatif. La proposition automatique utilise les déclarations confirmées ; les mois manquants sont estimés à partir de la mensualisation contractuelle et sont signalés.
 
 ## 6. Sources officielles
 
@@ -104,10 +110,16 @@ L’indemnité compensatrice de congés payés et le dernier salaire sont saisis
   https://www.service-public.fr/particuliers/vosdroits/F31655
 - Service-Public, « Rupture du contrat de travail d’une assistante maternelle »  
   https://www.service-public.fr/particuliers/vosdroits/F16842
+- Urssaf, « Déclarer la fin du contrat de travail »
+  https://www.urssaf.fr/accueil/particulier/particulier-employeur/gerer-la-fin-du-contrat-de-trava/declarer-fin-contrat.html
+- Urssaf service Pajemploi, « Déclarer une fin de contrat »
+  https://www.urssaf.fr/accueil/services/services-particuliers/service-pajemploi/declarer-fin-contrat-pajemploi.html
+- Urssaf service Pajemploi, « Simuler une fin de contrat »
+  https://www.urssaf.fr/accueil/services/services-particuliers/service-pajemploi/simulation-fin-contrat-pajemploi.html
 
 ## 6 bis. Simulations, validation et CMG
 
-Un mois peut contenir plusieurs simulations. Elles ne participent ni au compteur officiel de congés ni à la fin de contrat. Une seule simulation peut être marquée « validée sur Pajemploi » ; elle devient alors la mémoire officielle du mois dans NounouCalc.
+Un mois peut contenir plusieurs simulations. Elles ne participent ni au compteur officiel de congés ni à la fin de contrat. Une seule simulation peut être confirmée comme réellement saisie sur Pajemploi ; elle devient alors la mémoire officielle du mois dans NounouCalc. Cette confirmation est un bouton distinct du bouton d’enregistrement et demande une validation explicite.
 
 Le bulletin de salaire est produit par l’Urssaf service Pajemploi. NounouCalc génère à la place un dossier employeur récapitulatif des données du contrat et des seules déclarations confirmées.
 
@@ -140,7 +152,7 @@ Les captures utiles sont :
 5. simulation ou solde de fin de contrat ;
 6. bulletin Pajemploi correspondant, en masquant les informations sensibles.
 
-Ces références permettront une comparaison champ par champ et l’ajout des cas encore absents : adaptation, absences détaillées, jours fériés, planning réel et régularisation automatisée.
+Ces références permettront une comparaison champ par champ et l’ajout des cas encore absents : adaptation, absences détaillées, jours fériés et planning réel.
 
 ## 8. Mémoire locale et PWA
 

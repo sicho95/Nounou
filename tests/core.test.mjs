@@ -7,7 +7,8 @@ import {
   contractBasis,
   globalLeaveBalance,
   leaveSummary,
-  referencePeriod
+  referencePeriod,
+  scheduledDaysInMonth
 } from "../core.mjs";
 
 const contract = {
@@ -84,23 +85,15 @@ test("rattache janvier à la période de référence commencée en juin précéd
 });
 
 test("cumule et plafonne les congés acquis à 30 jours", () => {
-  const declarations = {};
-  for (let month = 1; month <= 12; month += 1) {
-    const period = month >= 6
-      ? `2026-${String(month).padStart(2, "0")}`
-      : `2027-${String(month).padStart(2, "0")}`;
-    declarations[period] = {
-      input: { period, cpDaysDeclared: month === 6 ? 10 : 0, cpReferenceKey: month === 6 ? "2025" : "2026" },
-      results: { leave: { acquiredRaw: 3 } }
-    };
-  }
-  const summary = leaveSummary(declarations, "2027-05");
+  const fullYear = { ...contract, startDate: "2026-06-01", weeksPerYear: 52 };
+  const summary = leaveSummary(fullYear, {}, "2027-05", null, "2027-05-31");
   assert.equal(summary.acquiredRaw, 30);
   assert.equal(summary.paidDays, 0);
   assert.equal(summary.remainingDays, 30);
 });
 
 test("un paiement en juin solde l'ancienne période sans effacer les nouveaux droits", () => {
+  const juneContract = { ...contract, startDate: "2026-06-01" };
   const declarations = {
     "2027-05": {
       input: { period: "2027-05", cpDaysDeclared: 0, cpReferenceKey: "2026" },
@@ -115,16 +108,93 @@ test("un paiement en juin solde l'ancienne période sans effacer les nouveaux dr
       results: { leave: { acquiredRaw: 2.4 } }
     }
   };
-  const june = leaveSummary(declarations, "2027-06");
-  const total = globalLeaveBalance(declarations, "2027-07");
-  assert.equal(june.acquiredRaw, 4.8);
+  const june = leaveSummary(juneContract, declarations, "2027-06", null, "2027-06-30");
+  const total = globalLeaveBalance(juneContract, declarations, "2027-07-31");
   assert.equal(june.paidDays, 0);
-  assert.equal(total.acquiredDays, 28.8);
-  assert.equal(total.paidDays, 24);
-  assert.equal(total.remainingDays, 4.8);
+  assert.ok(june.acquiredRaw > 0);
+  assert.equal(total.paidByReference["2026"], 24);
+  assert.ok(total.remainingDays > 0);
+});
+
+test("calcule depuis la date de début même sans historique et ajoute les jours enfant à la clôture", () => {
+  const screenshotContract = {
+    ...contract,
+    startDate: "2025-09-08",
+    employeeDependentChildrenUnder15: 1
+  };
+  const balance = globalLeaveBalance(screenshotContract, {}, "2026-05-31");
+  assert.equal(balance.periods["2025"].annualDays, 22);
+  assert.equal(balance.periods["2025"].childDays, 2);
+  assert.equal(balance.remainingDays, 24);
+});
+
+test("conserve l’arrondi et les jours enfant d’une période clôturée après le 31 mai", () => {
+  const screenshotContract = {
+    ...contract,
+    startDate: "2025-09-08",
+    employeeDependentChildrenUnder15: 1
+  };
+  const balance = globalLeaveBalance(screenshotContract, {}, "2026-07-31");
+
+  assert.equal(balance.periods["2025"].closed, true);
+  assert.equal(balance.periods["2025"].annualDays, 22);
+  assert.equal(balance.periods["2025"].childDays, 2);
+  assert.equal(balance.periods["2025"].totalDays, 24);
+});
+
+test("propose automatiquement les jours ouvrés du mois", () => {
+  const julyContract = { ...contract, startDate: "2025-09-08", daysPerWeek: 5 };
+  assert.equal(scheduledDaysInMonth(julyContract, "2026-07"), 23);
+  assert.equal(scheduledDaysInMonth(julyContract, "2026-07", "2026-07-24"), 18);
+});
+
+test("retrouve les 2,75 jours acquis en juin montrés par NounouTop", () => {
+  const juneContract = { ...contract, startDate: "2025-09-08", daysPerWeek: 5 };
+  const draft = {
+    period: "2026-06",
+    input: {
+      period: "2026-06",
+      actualDays: 22,
+      autoLeaveAccrual: true,
+      leaveAdjustmentWeeks: 0
+    }
+  };
+  const summary = leaveSummary(juneContract, {}, "2026-06", draft, "2026-06-30");
+  const declaration = calculateDeclaration(juneContract, draft.input);
+
+  assert.equal(summary.monthEquivalentWeeks, 4.4);
+  assert.equal(summary.monthAcquiredRaw, 2.75);
+  assert.equal(declaration.leave.acquiredRaw, 2.75);
+});
+
+test("une fin de contrat ajoute les indemnités au salaire et au total à payer", () => {
+  const result = calculateDeclaration(contract, {
+    period: "2027-07",
+    actualDays: 18,
+    meals: 18,
+    complementaryHours: 0,
+    extraMajorHours: 0,
+    cpDaysDeclared: 0,
+    cpPaidNet: 0,
+    isEndContract: "yes",
+    endDate: "2027-07-31",
+    endingCpNet: 317.44,
+    endingCpDays: 3,
+    noticeCompensationNet: 0,
+    precariousnessNet: 0,
+    endingRegularizationNet: 0,
+    ruptureIndemnityNet: 172.38,
+    otherSalaryNet: 0,
+    absenceDeductionNet: 0
+  });
+  assert.equal(result.ending.active, true);
+  assert.equal(result.declared.cpDays, 3);
+  assert.equal(result.paidLeaveConversion.hours, 79.36);
+  assert.equal(Math.round((result.totalToPay - result.declared.netSalary - result.expenses.total) * 100) / 100, 172.38);
 });
 
 test("un paiement ancien ne consomme jamais les nouveaux droits si l'historique ancien manque", () => {
+  const juneContract = { ...contract, startDate: "2027-06-01" };
   const declarations = {
     "2027-06": {
       input: { period: "2027-06", cpDaysDeclared: 24, cpReferenceKey: "2026" },
@@ -135,11 +205,35 @@ test("un paiement ancien ne consomme jamais les nouveaux droits si l'historique 
       results: { leave: { acquiredRaw: 2.4 } }
     }
   };
-  const total = globalLeaveBalance(declarations, "2027-07");
-  assert.equal(total.remainingDays, 4.8);
+  const total = globalLeaveBalance(juneContract, declarations, "2027-07-31");
+  assert.ok(total.periods["2027"].remainingDays > 0);
+  assert.equal(total.periods["2026"].remainingDays, 0);
 });
 
-test("calcule l'indemnité de rupture après neuf mois à partir du brut historisé", () => {
+test("la fin de contrat solde d’abord les congés impayés les plus anciens", () => {
+  const endingContract = {
+    ...contract,
+    startDate: "2025-09-08",
+    daysPerWeek: 5,
+    employeeDependentChildrenUnder15: 1
+  };
+  const declarations = {
+    "2026-07": {
+      input: {
+        period: "2026-07",
+        actualDays: 23,
+        autoLeaveAccrual: true,
+        endingCpDays: 100
+      }
+    }
+  };
+  const afterPayment = globalLeaveBalance(endingContract, declarations, "2026-07-31");
+
+  assert.equal(afterPayment.periods["2025"].paidDays, 24);
+  assert.equal(afterPayment.remainingDays, 0);
+});
+
+test("calcule l'indemnité de rupture après neuf mois avec estimation des mois manquants", () => {
   const declarations = {
     "2026-09": { input: { period: "2026-09" }, results: { salary: { grossForHistory: 800 } } },
     "2026-10": { input: { period: "2026-10" }, results: { salary: { grossForHistory: 800 } } }
@@ -152,9 +246,10 @@ test("calcule l'indemnité de rupture après neuf mois à partir du brut histori
     endingCpNet: 100,
     lastSalaryNet: 600
   });
-  assert.equal(result.ruptureIndemnity, 20);
+  assert.equal(result.ruptureIndemnity, 115.31);
   assert.equal(result.regularization, 50);
-  assert.equal(result.total, 770);
+  assert.equal(result.total, 865.31);
+  assert.equal(result.estimatedMonthsCount, 9);
 });
 
 test("estime le CMG 2026 avec ressources N-2, enfants et coût horaire", () => {

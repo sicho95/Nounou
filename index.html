@@ -78,25 +78,22 @@
           </label>
         </div>
         <p id="periodHint" class="hint"></p>
-        <button id="newSimulationButton" class="button ghost compact">Créer une autre simulation pour ce mois</button>
+        <button id="newSimulationButton" class="button ghost compact">Dupliquer pour tester une variante</button>
       </div>
 
       <details class="card collapsible" open>
         <summary>Activité réellement effectuée</summary>
-        <div class="form-grid three compact-grid collapsible-body">
+        <div class="form-grid two compact-grid collapsible-body">
           <label>Jours réellement gardés
             <input id="actualDays" type="number" min="0" step="0.5">
-            <small>Uniquement pour l’entretien. Ce n’est pas le nombre de jours d’activité Pajemploi.</small>
+            <small>Prérempli avec les jours ouvrés du mois. Sert à l’entretien, pas aux jours mensualisés Pajemploi.</small>
           </label>
           <label>Jours avec repas fournis
             <input id="meals" type="number" min="0" step="1">
-            <small>Peut différer des jours réellement gardés.</small>
-          </label>
-          <label>Semaines équivalentes
-            <input id="equivalentWeeks" type="number" min="0" max="5" step="0.01">
-            <small>Pour le suivi provisoire des congés acquis.</small>
+            <small>Prérempli comme les jours gardés, modifiable si certains repas ne sont pas fournis.</small>
           </label>
         </div>
+        <p id="automaticLeaveInfo" class="auto-info"></p>
       </details>
 
       <details class="card collapsible">
@@ -123,6 +120,10 @@
           <label>Acompte déjà versé
             <input id="advancePaid" type="number" min="0" step="0.01" value="0">
           </label>
+          <label>Ajustement semaines ouvrant droit aux congés
+            <input id="leaveAdjustmentWeeks" type="number" step="0.01" value="0">
+            <small>Laisser 0 normalement. Utiliser seulement pour corriger une absence non assimilée ou un planning particulier.</small>
+          </label>
         </div>
       </details>
 
@@ -139,6 +140,57 @@
           <label>Handicap, longue maladie ou inadaptation
             <select id="disabilityCare"><option value="no">Non</option><option value="yes">Oui</option></select>
           </label>
+        </div>
+      </details>
+
+      <details class="card collapsible" id="monthlyEndCard">
+        <summary>Fin de contrat ce mois</summary>
+        <div class="collapsible-body">
+          <label class="select-emphasis">S’agit-il de la dernière déclaration du contrat ?
+            <select id="isEndContract"><option value="no">Non</option><option value="yes">Oui</option></select>
+          </label>
+          <div id="monthlyEndFields" class="hidden">
+            <div class="form-grid two compact-grid">
+              <label>Date de fin du contrat
+                <input id="endDateMonthly" type="date">
+              </label>
+              <label>Motif
+                <select id="endReasonMonthly">
+                  <option value="employer">Retrait de l’enfant par l’employeur</option>
+                  <option value="employee">Démission de la salariée</option>
+                  <option value="death">Décès de l’enfant</option>
+                  <option value="serious">Faute grave ou lourde</option>
+                  <option value="approval">Retrait ou suspension d’agrément</option>
+                  <option value="cdd">Fin de CDD</option>
+                  <option value="agreement">Autre motif</option>
+                </select>
+              </label>
+            </div>
+            <div id="endAutoInfo" class="auto-info"></div>
+            <button id="recalculateEndButton" class="button ghost compact" type="button">Recalculer automatiquement</button>
+            <div class="form-grid two compact-grid end-fields">
+              <label>Prime de précarité nette
+                <input id="precariousnessNet" type="number" min="0" step="0.01">
+                <small>CDD uniquement.</small>
+              </label>
+              <label>Indemnité compensatrice de congés payés nette
+                <input id="endingCpNetMonthly" type="number" min="0" step="0.01">
+              </label>
+              <label>Jours de congés soldés
+                <input id="endingCpDays" type="number" min="0" step="0.5">
+              </label>
+              <label>Indemnité compensatrice de préavis nette
+                <input id="noticeCompensationNet" type="number" min="0" step="0.01" value="0">
+              </label>
+              <label>Indemnité de rupture nette
+                <input id="ruptureIndemnityNet" type="number" min="0" step="0.01">
+              </label>
+              <label>Régularisation de salaire nette
+                <input id="endingRegularizationNet" type="number" min="0" step="0.01" value="0">
+              </label>
+            </div>
+            <p class="hint">Les propositions utilisent le contrat et les mois confirmés. Elles restent modifiables avant la simulation et doivent être comparées au module officiel Pajemploi.</p>
+          </div>
         </div>
       </details>
 
@@ -163,12 +215,9 @@
       </details>
 
       <details class="card collapsible">
-        <summary>Contrôle après saisie Pajemploi</summary>
+        <summary>Montants officiels après saisie Pajemploi</summary>
         <div class="collapsible-body">
-        <label class="check-line">
-          <input id="markAsOfficial" type="checkbox">
-          <span>Cette simulation a été saisie et validée sur Pajemploi</span>
-        </label>
+        <p class="hint">Ces trois montants sont facultatifs et se recopient après la déclaration. Ils ne servent pas à confirmer une simulation.</p>
         <label>Salaire brut officiel du mois <span class="optional">(facultatif)</span>
           <input id="officialGross" type="number" min="0" step="0.01" placeholder="À recopier après la déclaration">
           <small>Améliore le calcul futur de l’indemnité de rupture. Sinon l’estimation contractuelle brute est conservée.</small>
@@ -196,6 +245,14 @@
             <h2>Valeurs à reporter sur Pajemploi</h2>
           </div>
           <button id="printMonthly" class="button ghost compact">Imprimer</button>
+        </div>
+
+        <div id="officialConfirmation" class="card official-confirmation">
+          <div>
+            <strong id="officialConfirmationTitle">Simulation non confirmée</strong>
+            <p id="officialConfirmationText">Comparez les valeurs ci-dessous à Pajemploi, puis confirmez uniquement la version réellement saisie.</p>
+          </div>
+          <button id="confirmOfficialButton" class="button secondary" type="button">Confirmer la saisie sur Pajemploi</button>
         </div>
 
         <div class="declaration-grid">
@@ -239,6 +296,11 @@
           </article>
         </div>
 
+        <div id="outEndBreakdownCard" class="card breakdown hidden">
+          <h3>Rubrique « Indemnités de fin de contrat »</h3>
+          <div id="outEndBreakdown"></div>
+        </div>
+
         <div class="card breakdown">
           <h3>Détail du calcul du salaire</h3>
           <div id="salaryBreakdown"></div>
@@ -260,7 +322,9 @@
         <div class="card cp-summary">
           <h3>Compteur de congés — <span id="outReferencePeriod"></span></h3>
           <div class="progress"><span id="cpProgress"></span></div>
-          <p><strong id="outCpAcquired">—</strong> jours provisoirement acquis, dont <strong id="outCpPaid">—</strong> jours déclarés payés dans l’historique.</p>
+          <p>Ce mois : <strong id="outCpMonthAcquired">—</strong> jours bruts acquis automatiquement.</p>
+          <p>Période : <strong id="outCpAcquired">—</strong> jours acquis, dont <strong id="outCpPaid">—</strong> jours déjà déclarés payés.</p>
+          <p>Depuis le début du contrat : <strong id="outCpGlobalAcquired">—</strong> acquis • <strong id="outCpGlobalPaid">—</strong> payés • <strong id="outCpGlobalRemaining">—</strong> restant à rémunérer.</p>
         </div>
       </section>
     </section>
@@ -326,6 +390,10 @@
           </label>
           <label>Indemnité repas / repas
             <input id="mealRate" type="number" min="0" step="0.01" value="4">
+          </label>
+          <label>Enfants de moins de 15 ans à charge de la salariée
+            <input id="employeeDependentChildrenUnder15" type="number" min="0" step="1" value="0">
+            <small>Pour les éventuels 2 jours supplémentaires par enfant, dans la limite de 30 jours.</small>
           </label>
         </div>
       </div>
@@ -453,10 +521,6 @@
           </label>
           <label>Indemnité compensatrice de congés payés nette
             <input id="endingCpNet" type="number" min="0" step="0.01" value="0">
-          </label>
-          <label>Semaines équivalentes non encore historisées
-            <input id="endingEquivalentWeeks" type="number" min="0" step="0.01" value="0">
-            <small>Ex. semaines de juillet/août avant d’enregistrer le dernier mois.</small>
           </label>
           <label>Dernier salaire net et autres éléments
             <input id="lastSalaryNet" type="number" min="0" step="0.01" value="0">

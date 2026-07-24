@@ -31,6 +31,62 @@ export function referencePeriod(period) {
   return { key: String(startYear), label: `1er juin ${startYear} – 31 mai ${startYear + 1}` };
 }
 
+function isoDate(value) {
+  const date = new Date(`${value}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function periodFromDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export function periodsBetween(startDate, endDate) {
+  const start = isoDate(startDate);
+  const end = isoDate(endDate);
+  if (!start || !end || end < start) return [];
+  const cursor = new Date(start.getFullYear(), start.getMonth(), 1, 12);
+  const last = new Date(end.getFullYear(), end.getMonth(), 1, 12);
+  const periods = [];
+  while (cursor <= last) {
+    periods.push(periodFromDate(cursor));
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return periods;
+}
+
+function scheduledWeekdays(contract) {
+  const count = Math.max(0, Math.min(7, Math.round(number(contract.daysPerWeek))));
+  return new Set(Array.from({ length: count }, (_, index) => index === 6 ? 0 : index + 1));
+}
+
+export function scheduledDaysInMonth(contract, period, endDate = "") {
+  if (!/^\d{4}-\d{2}$/.test(period || "")) return 0;
+  const [year, month] = period.split("-").map(Number);
+  const allowed = scheduledWeekdays(contract);
+  const startLimit = isoDate(contract.startDate);
+  const endLimit = isoDate(endDate);
+  let total = 0;
+  for (let day = 1; day <= new Date(year, month, 0).getDate(); day += 1) {
+    const date = new Date(year, month - 1, day, 12);
+    if (startLimit && date < startLimit) continue;
+    if (endLimit && date > endLimit) continue;
+    if (allowed.has(date.getDay())) total += 1;
+  }
+  return total;
+}
+
+export function automaticAccrualWeeks(contract, period, endDate = "", adjustmentWeeks = 0) {
+  if (!/^\d{4}-\d{2}$/.test(period || "")) return 0;
+  const [year, month] = period.split("-").map(Number);
+  const fullContract = { ...contract, startDate: "" };
+  const fullDays = scheduledDaysInMonth(fullContract, period);
+  const activeDays = scheduledDaysInMonth(contract, period, endDate);
+  const fraction = fullDays > 0 ? activeDays / fullDays : 0;
+  const annualWeeks = Math.max(0, number(contract.weeksPerYear));
+  const weeks = (annualWeeks === 52 ? 4 : annualWeeks / 12) * fraction;
+  return round(Math.max(0, weeks + number(adjustmentWeeks)), 4);
+}
+
 export function completedMonths(startDate, endDate) {
   if (!startDate || !endDate) return 0;
   const start = new Date(`${startDate}T12:00:00`);
@@ -69,6 +125,11 @@ export function calculateDeclaration(contract, input) {
   const complementaryHours = Math.max(0, number(input.complementaryHours));
   const extraMajorHours = Math.max(0, number(input.extraMajorHours));
   const cpPaidNet = Math.max(0, number(input.cpPaidNet));
+  const endingCpNet = input.isEndContract === "yes" ? Math.max(0, number(input.endingCpNet)) : 0;
+  const noticeCompensationNet = input.isEndContract === "yes" ? Math.max(0, number(input.noticeCompensationNet)) : 0;
+  const precariousnessNet = input.isEndContract === "yes" ? Math.max(0, number(input.precariousnessNet)) : 0;
+  const regularizationNet = input.isEndContract === "yes" ? Math.max(0, number(input.endingRegularizationNet)) : 0;
+  const ruptureIndemnityNet = input.isEndContract === "yes" ? Math.max(0, number(input.ruptureIndemnityNet)) : 0;
   const otherSalaryNet = number(input.otherSalaryNet);
   const deduction = Math.max(0, number(input.absenceDeductionNet));
 
@@ -76,7 +137,8 @@ export function calculateDeclaration(contract, input) {
   const contractMajorNet = basis.majorHoursExact * netRate * majorFactor;
   const complementaryNet = complementaryHours * netRate * complementaryFactor;
   const extraMajorNet = extraMajorHours * netRate * majorFactor;
-  const salaryBeforeDeduction = normalNet + contractMajorNet + complementaryNet + extraMajorNet + cpPaidNet + otherSalaryNet;
+  const salaryBeforeDeduction = normalNet + contractMajorNet + complementaryNet + extraMajorNet +
+    cpPaidNet + endingCpNet + noticeCompensationNet + precariousnessNet + regularizationNet + otherSalaryNet;
   const netSalary = Math.max(0, salaryBeforeDeduction - deduction);
 
   const normalGross = basis.normalHoursExact * grossRate;
@@ -92,8 +154,22 @@ export function calculateDeclaration(contract, input) {
   const meals = Math.max(0, number(input.meals)) * Math.max(0, number(contract.mealRate));
   const kilometers = Math.max(0, number(input.kilometerAllowance));
   const advancePaid = Math.max(0, number(input.advancePaid));
-  const acquiredRaw = Math.max(0, number(input.equivalentWeeks)) * 2.5 / 4;
-  const cpHours = netRate > 0 ? cpPaidNet / netRate : 0;
+  const accrualWeeks = input.autoLeaveAccrual === false
+    ? Math.max(0, number(input.equivalentWeeks))
+    : number(contract.weeksPerYear) <= 46 && input.actualDays != null && number(contract.daysPerWeek) > 0
+      ? Math.max(
+          0,
+          number(input.actualDays) / number(contract.daysPerWeek) +
+            number(input.leaveAdjustmentWeeks)
+        )
+      : automaticAccrualWeeks(
+          contract,
+          input.period,
+          input.isEndContract === "yes" ? input.endDate : "",
+          input.leaveAdjustmentWeeks
+        );
+  const acquiredRaw = accrualWeeks * 2.5 / 4;
+  const cpHours = netRate > 0 ? (cpPaidNet + endingCpNet + noticeCompensationNet) / netRate : 0;
   const normalHoursWithPaidLeave = basis.normalHoursExact + cpHours;
 
   return {
@@ -103,7 +179,7 @@ export function calculateDeclaration(contract, input) {
       normalHours: Math.round(normalHoursWithPaidLeave),
       complementaryHours: round(complementaryHours, 2),
       majorHours: round(basis.declaredContractMajorHours + extraMajorHours, 2),
-      cpDays: round(Math.max(0, number(input.cpDaysDeclared)), 2),
+      cpDays: round(Math.max(0, number(input.cpDaysDeclared)) + Math.max(0, number(input.endingCpDays)), 2),
       netSalary: round(netSalary)
     },
     salary: {
@@ -112,6 +188,10 @@ export function calculateDeclaration(contract, input) {
       complementaryNet: round(complementaryNet),
       extraMajorNet: round(extraMajorNet),
       cpPaidNet: round(cpPaidNet),
+      endingCpNet: round(endingCpNet),
+      noticeCompensationNet: round(noticeCompensationNet),
+      precariousnessNet: round(precariousnessNet),
+      regularizationNet: round(regularizationNet),
       otherSalaryNet: round(otherSalaryNet),
       absenceDeductionNet: round(deduction),
       netSalary: round(netSalary),
@@ -126,7 +206,7 @@ export function calculateDeclaration(contract, input) {
       total: round(maintenance + meals + kilometers)
     },
     advancePaid: round(advancePaid),
-    totalToPay: round(Math.max(0, netSalary + maintenance + meals + kilometers - advancePaid)),
+    totalToPay: round(Math.max(0, netSalary + maintenance + meals + kilometers + ruptureIndemnityNet - advancePaid)),
     paidLeaveConversion: {
       hours: round(cpHours, 4),
       normalHoursWithPaidLeave: round(normalHoursWithPaidLeave, 4)
@@ -134,10 +214,24 @@ export function calculateDeclaration(contract, input) {
     additional: {
       specificHours: input.specificHours === "yes",
       over24Hours: input.over24Hours === "yes",
-      disabilityCare: input.disabilityCare === "yes"
+      disabilityCare: input.disabilityCare === "yes",
+      endContract: input.isEndContract === "yes"
+    },
+    ending: {
+      active: input.isEndContract === "yes",
+      endDate: input.endDate || "",
+      reason: input.endReason || "",
+      precariousnessNet: round(precariousnessNet),
+      cpCompensationNet: round(endingCpNet),
+      cpDays: round(Math.max(0, number(input.endingCpDays)), 2),
+      noticeCompensationNet: round(noticeCompensationNet),
+      ruptureIndemnityNet: round(ruptureIndemnityNet),
+      regularizationNet: round(regularizationNet),
+      total: round(precariousnessNet + endingCpNet + noticeCompensationNet + ruptureIndemnityNet + regularizationNet)
     },
     leave: {
       acquiredRaw: round(acquiredRaw, 4),
+      equivalentWeeks: round(accrualWeeks, 4),
       reference: referencePeriod(input.period)
     }
   };
@@ -156,8 +250,12 @@ export function calculateCmg(cmgProfile, declaration) {
   const hours = Math.max(0,
     number(declared.normalHours) + number(declared.complementaryHours) + number(declared.majorHours)
   );
+  const endingSalaryElements = number(declaration.ending?.precariousnessNet) +
+    number(declaration.ending?.cpCompensationNet) +
+    number(declaration.ending?.noticeCompensationNet) +
+    number(declaration.ending?.regularizationNet);
   const eligibleCost = Math.max(0,
-    number(declared.netSalary) +
+    number(declared.netSalary) - endingSalaryElements +
     number(declaration.expenses?.maintenance) +
     number(declaration.expenses?.meals)
   );
@@ -188,93 +286,205 @@ export function calculateCmg(cmgProfile, declaration) {
   };
 }
 
-export function leaveSummary(declarations, period, draft = null) {
-  const ref = referencePeriod(period);
-  const byPeriod = Object.values(declarations || {}).filter(item =>
-    referencePeriod(item.input?.period || item.period).key === ref.key
-  );
-  let acquiredRaw = byPeriod.reduce((sum, item) => sum + number(item.results?.leave?.acquiredRaw), 0);
-  let paidDays = Object.values(declarations || {}).reduce((sum, item) => {
-    const itemPeriod = item.input?.period || item.period;
-    const paidReference = item.input?.cpReferenceKey || referencePeriod(itemPeriod).key;
-    return paidReference === ref.key ? sum + number(item.input?.cpDaysDeclared) : sum;
-  }, 0);
+function recordPeriod(item) {
+  return item?.input?.period || item?.period || "";
+}
 
-  if (draft && !declarations?.[draft.period]) {
-    acquiredRaw += number(draft.results?.leave?.acquiredRaw);
-    const paidReference = draft.input?.cpReferenceKey || referencePeriod(draft.period).key;
-    if (paidReference === ref.key) paidDays += number(draft.input?.cpDaysDeclared);
+function recordAccrualWeeks(contract, period, record, untilDate) {
+  if (record?.input?.autoLeaveAccrual === false) return Math.max(0, number(record.input.equivalentWeeks));
+  if (record?.input?.autoLeaveAccrual == null && record?.input?.equivalentWeeks != null) {
+    return Math.max(0, number(record.input.equivalentWeeks));
+  }
+  if (
+    number(contract.weeksPerYear) <= 46 &&
+    record?.input?.actualDays != null &&
+    number(contract.daysPerWeek) > 0
+  ) {
+    return Math.max(
+      0,
+      number(record.input.actualDays) / number(contract.daysPerWeek) +
+        number(record.input.leaveAdjustmentWeeks)
+    );
+  }
+  return automaticAccrualWeeks(
+    contract,
+    period,
+    period === untilDate.slice(0, 7) ? untilDate : "",
+    record?.input?.leaveAdjustmentWeeks
+  );
+}
+
+export function automaticLeaveLedger(contract, declarations, untilDate, draft = null) {
+  const end = isoDate(untilDate);
+  const start = isoDate(contract.startDate);
+  if (!start || !end || end < start) {
+    return { periods: {}, acquiredDays: 0, paidDays: 0, remainingDays: 0 };
+  }
+  const records = Object.values(declarations || {}).filter(item => recordPeriod(item) <= untilDate.slice(0, 7));
+  const recordsByMonth = Object.fromEntries(records.map(item => [recordPeriod(item), item]));
+  if (draft?.period && draft.period <= untilDate.slice(0, 7)) recordsByMonth[draft.period] = draft;
+  const periods = {};
+  let endingPayments = 0;
+
+  for (const period of periodsBetween(contract.startDate, untilDate)) {
+    const key = referencePeriod(period).key;
+    const record = recordsByMonth[period];
+    const weeks = recordAccrualWeeks(contract, period, record, untilDate);
+    periods[key] ||= {
+      key,
+      label: referencePeriod(period).label,
+      acquiredRaw: 0,
+      annualDays: 0,
+      childDays: 0,
+      paidDays: 0,
+      remainingDays: 0,
+      closed: false,
+      months: []
+    };
+    periods[key].acquiredRaw += weeks * 2.5 / 4;
+    periods[key].months.push({ period, equivalentWeeks: round(weeks, 4), acquiredRaw: round(weeks * 2.5 / 4, 4) });
   }
 
-  const acquiredCapped = Math.min(30, acquiredRaw);
+  for (const record of Object.values(recordsByMonth)) {
+    const period = recordPeriod(record);
+    const paidKey = record.input?.cpReferenceKey || referencePeriod(period).key;
+    periods[paidKey] ||= {
+      key: paidKey,
+      label: `1er juin ${paidKey} – 31 mai ${number(paidKey) + 1}`,
+      acquiredRaw: 0,
+      annualDays: 0,
+      childDays: 0,
+      paidDays: 0,
+      remainingDays: 0,
+      closed: true,
+      months: []
+    };
+    periods[paidKey].paidDays += number(record.input?.cpDaysDeclared);
+    endingPayments += number(record.input?.endingCpDays);
+  }
+
+  const dependentChildren = Math.max(0, Math.floor(number(contract.employeeDependentChildrenUnder15)));
+  for (const [key, item] of Object.entries(periods)) {
+    const closingDate = `${number(key) + 1}-05-31`;
+    item.closed = end >= isoDate(closingDate);
+    const cappedRaw = Math.min(30, item.acquiredRaw);
+    item.annualDays = item.closed ? Math.min(30, Math.ceil(cappedRaw - 1e-9)) : cappedRaw;
+    item.childDays = item.closed ? Math.min(dependentChildren * 2, Math.max(0, 30 - item.annualDays)) : 0;
+    item.totalDays = Math.min(30, item.annualDays + item.childDays);
+    item.remainingDays = Math.max(0, item.totalDays - item.paidDays);
+  }
+
+  for (const key of Object.keys(periods).sort()) {
+    if (endingPayments <= 0) break;
+    const item = periods[key];
+    const allocated = Math.min(item.remainingDays, endingPayments);
+    item.paidDays += allocated;
+    item.remainingDays -= allocated;
+    endingPayments -= allocated;
+  }
+
+  for (const item of Object.values(periods)) {
+    for (const field of ["acquiredRaw", "annualDays", "childDays", "totalDays", "paidDays", "remainingDays"]) {
+      item[field] = round(item[field], 2);
+    }
+  }
+
+  const values = Object.values(periods);
   return {
-    reference: ref,
-    acquiredRaw: round(acquiredCapped, 2),
-    acquiredRoundedAtPeriodEnd: Math.min(30, Math.ceil(acquiredCapped - 1e-9)),
-    paidDays: round(paidDays, 2),
-    remainingDays: round(Math.max(0, acquiredCapped - paidDays), 2)
+    periods,
+    acquiredDays: round(values.reduce((sum, item) => sum + item.totalDays, 0), 2),
+    paidDays: round(values.reduce((sum, item) => sum + item.paidDays, 0), 2),
+    remainingDays: round(values.reduce((sum, item) => sum + item.remainingDays, 0), 2)
   };
 }
 
-export function globalLeaveBalance(declarations, untilPeriod = "") {
-  const records = Object.values(declarations || {}).filter(item => {
-    const period = item.input?.period || item.period;
-    return period && (!untilPeriod || period <= untilPeriod);
-  });
-  const acquiredByReference = {};
-  const paidByReference = {};
-
-  for (const item of records) {
-    const period = item.input?.period || item.period;
-    const key = referencePeriod(period).key;
-    const paidKey = item.input?.cpReferenceKey || key;
-    acquiredByReference[key] = number(acquiredByReference[key]) + number(item.results?.leave?.acquiredRaw);
-    paidByReference[paidKey] = number(paidByReference[paidKey]) + number(item.input?.cpDaysDeclared);
-  }
-
-  const acquiredDays = Object.values(acquiredByReference)
-    .reduce((sum, value) => sum + Math.min(30, number(value)), 0);
-  const paidDays = Object.values(paidByReference).reduce((sum, value) => sum + number(value), 0);
-  const referenceKeys = new Set([...Object.keys(acquiredByReference), ...Object.keys(paidByReference)]);
-  const remainingDays = [...referenceKeys].reduce((sum, key) => {
-    const acquired = Math.min(30, number(acquiredByReference[key]));
-    const paid = number(paidByReference[key]);
-    return sum + Math.max(0, acquired - paid);
-  }, 0);
+export function leaveSummary(contract, declarations, period, draft = null, untilDate = "") {
+  const normalizedDate = untilDate || (() => {
+    const [year, month] = period.split("-").map(Number);
+    return `${period}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+  })();
+  const ledger = automaticLeaveLedger(contract, declarations, normalizedDate, draft);
+  const ref = referencePeriod(period);
+  const current = ledger.periods[ref.key] || {
+    acquiredRaw: 0, annualDays: 0, childDays: 0, totalDays: 0, paidDays: 0, remainingDays: 0, months: []
+  };
   return {
-    acquiredDays: round(acquiredDays, 2),
-    paidDays: round(paidDays, 2),
-    remainingDays: round(remainingDays, 2),
-    acquiredByReference: Object.fromEntries(
-      Object.entries(acquiredByReference).map(([key, value]) => [key, round(Math.min(30, value), 2)])
-    ),
-    paidByReference: Object.fromEntries(
-      Object.entries(paidByReference).map(([key, value]) => [key, round(value, 2)])
-    )
+    reference: ref,
+    acquiredRaw: current.acquiredRaw,
+    acquiredRoundedAtPeriodEnd: current.totalDays,
+    annualDays: current.annualDays,
+    childDays: current.childDays,
+    paidDays: current.paidDays,
+    remainingDays: current.remainingDays,
+    monthAcquiredRaw: current.months.find(item => item.period === period)?.acquiredRaw || 0,
+    monthEquivalentWeeks: current.months.find(item => item.period === period)?.equivalentWeeks || 0,
+    ledger
+  };
+}
+
+export function globalLeaveBalance(contract, declarations, untilDate = "", draft = null) {
+  const ledger = automaticLeaveLedger(contract, declarations, untilDate, draft);
+  return {
+    ...ledger,
+    acquiredByReference: Object.fromEntries(Object.entries(ledger.periods).map(([key, item]) => [key, item.totalDays])),
+    paidByReference: Object.fromEntries(Object.entries(ledger.periods).map(([key, item]) => [key, item.paidDays]))
   };
 }
 
 export function calculateEnd(contract, declarations, input) {
   const endDate = input.endDate;
   const startDate = contract.startDate;
-  const records = Object.values(declarations || {}).filter(item => {
-    const period = item.input?.period || item.period;
+  const recordsByPeriod = Object.fromEntries(Object.values(declarations || {}).map(item => [recordPeriod(item), item]));
+  const contractMonths = periodsBetween(startDate, endDate);
+  const basis = contractBasis(contract);
+  const estimatedMonthlyGross = number(contract.grossHourlyRate) > 0
+    ? basis.normalHoursExact * number(contract.grossHourlyRate) +
+      basis.majorHoursExact * number(contract.grossHourlyRate) * (1 + number(contract.majorMarkup) / 100)
+    : 0;
+  const records = Object.values(recordsByPeriod).filter(item => {
+    const period = recordPeriod(item);
     return period && (!endDate || `${period}-01` <= endDate);
   });
-  const grossTotal = round(records.reduce((sum, item) => sum + number(item.results?.salary?.grossForHistory), 0));
+  const grossTotal = round(contractMonths.reduce((sum, period) => {
+    return sum + number(recordsByPeriod[period]?.results?.salary?.grossForHistory, estimatedMonthlyGross);
+  }, 0));
   const seniorityMonths = completedMonths(startDate, endDate);
   const reason = input.reason;
   const ruptureEligible = reason === "death" || (reason === "employer" && seniorityMonths >= 9);
-  const ruptureIndemnity = ruptureEligible ? round(grossTotal / 80) : 0;
-  const cddIndemnity = reason === "cdd" ? round(grossTotal * 0.10) : 0;
+  const suggestedRuptureIndemnity = ruptureEligible ? round(grossTotal / 80) : 0;
+  const grossToNetRatio = number(contract.grossHourlyRate) > 0
+    ? Math.min(1, number(contract.netHourlyRate) / number(contract.grossHourlyRate))
+    : 1;
+  const suggestedCddIndemnity = reason === "cdd" ? round(grossTotal * 0.10 * grossToNetRatio) : 0;
+  const ruptureIndemnity = input.ruptureIndemnityNet === "" || input.ruptureIndemnityNet == null
+    ? suggestedRuptureIndemnity
+    : Math.max(0, number(input.ruptureIndemnityNet));
+  const cddIndemnity = input.precariousnessNet === "" || input.precariousnessNet == null
+    ? suggestedCddIndemnity
+    : Math.max(0, number(input.precariousnessNet));
   const regularization = round(Math.max(0, number(input.regularizationDueNet) - number(input.regularizationPaidNet)));
-  const cpCompensation = round(Math.max(0, number(input.endingCpNet)));
+  const leaveBalance = globalLeaveBalance(contract, declarations, endDate);
+  const hoursPerDay = number(contract.daysPerWeek) > 0
+    ? number(contract.normalHoursPerWeek) / number(contract.daysPerWeek)
+    : 0;
+  const suggestedCpMaintenanceNet = round(leaveBalance.remainingDays * hoursPerDay * number(contract.netHourlyRate));
+  const grossByReference = {};
+  for (const period of contractMonths) {
+    const key = referencePeriod(period).key;
+    grossByReference[key] = number(grossByReference[key]) +
+      number(recordsByPeriod[period]?.results?.salary?.grossForHistory, estimatedMonthlyGross);
+  }
+  const suggestedCpTenthNet = round(Object.entries(leaveBalance.periods).reduce((sum, [key, item]) => {
+    const ratioUnpaid = item.totalDays > 0 ? item.remainingDays / item.totalDays : 0;
+    return sum + number(grossByReference[key]) * 0.10 * grossToNetRatio * ratioUnpaid;
+  }, 0));
+  const suggestedCpCompensation = Math.max(suggestedCpMaintenanceNet, suggestedCpTenthNet);
+  const cpCompensation = input.endingCpNet === "" || input.endingCpNet == null
+    ? suggestedCpCompensation
+    : round(Math.max(0, number(input.endingCpNet)));
   const lastSalary = round(Math.max(0, number(input.lastSalaryNet)));
-  const untilPeriod = endDate ? endDate.slice(0, 7) : "";
-  const leaveBalance = globalLeaveBalance(declarations, untilPeriod);
-  const projectedAcquiredDays = round(Math.max(0, number(input.endingEquivalentWeeks)) * 2.5 / 4, 2);
-  leaveBalance.projectedAcquiredDays = projectedAcquiredDays;
-  leaveBalance.remainingWithProjection = round(leaveBalance.remainingDays + projectedAcquiredDays, 2);
+  leaveBalance.projectedAcquiredDays = 0;
+  leaveBalance.remainingWithProjection = leaveBalance.remainingDays;
   const total = round(ruptureIndemnity + cddIndemnity + regularization + cpCompensation + lastSalary);
 
   return {
@@ -283,13 +493,19 @@ export function calculateEnd(contract, declarations, input) {
     ruptureEligible,
     ruptureIndemnity,
     cddIndemnity,
+    suggestedRuptureIndemnity,
+    suggestedCddIndemnity,
     regularization,
     cpCompensation,
+    suggestedCpCompensation,
+    suggestedCpMaintenanceNet,
+    suggestedCpTenthNet,
     lastSalary,
     leaveBalance,
     total,
-    grossMissing: records.some(item => !number(item.results?.salary?.grossForHistory)),
-    recordsCount: records.length
+    grossMissing: number(contract.grossHourlyRate) <= 0 && records.some(item => !number(item.results?.salary?.grossForHistory)),
+    recordsCount: records.length,
+    estimatedMonthsCount: contractMonths.filter(period => !recordsByPeriod[period]).length
   };
 }
 
@@ -320,6 +536,7 @@ export function defaultState() {
       complementaryMarkup: 0,
       maintenanceRate: 3.8,
       mealRate: 4,
+      employeeDependentChildrenUnder15: 0,
       cpPaymentMode: "june",
       cpPaymentMonth: 6
     },

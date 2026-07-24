@@ -10,11 +10,12 @@ NounouCalc est un assistant local pour préparer les déclarations mensuelles Pa
 - détaille le salaire net, les indemnités d’entretien et les repas ;
 - enregistre chaque déclaration mensuelle dans le navigateur ;
 - conserve plusieurs simulations par mois et distingue clairement la simulation de la déclaration confirmée sur Pajemploi ;
-- suit provisoirement les congés acquis par période du 1er juin au 31 mai ;
+- calcule automatiquement les congés acquis depuis la date de début du contrat, même si aucun mois antérieur n’a encore été enregistré ;
+- déduit les congés déjà rémunérés dans les déclarations Pajemploi confirmées et solde d’abord les droits les plus anciens ;
 - rappelle le mois et le mode de paiement des congés prévu au contrat ;
 - exporte et importe une sauvegarde JSON complète ;
 - protège les données à chaud (brouillon de mise à jour), à tiède (stockage immédiat) et à froid (IndexedDB avec 30 instantanés) ;
-- prépare une simulation de fin de contrat à partir de l’historique ;
+- prépare directement dans la déclaration du dernier mois la fin de contrat, les congés restant à payer, le préavis, la précarité, la rupture et la régularisation ;
 - estime le CMG selon le barème 2026 et mémorise ensuite les montants réellement calculés par Pajemploi+ ;
 - imprime un dossier employeur professionnel, tandis que le bulletin de salaire officiel reste produit par Pajemploi.
 - s’installe comme PWA, fonctionne hors ligne et vérifie automatiquement les nouveaux builds ;
@@ -25,12 +26,13 @@ L’application ne transmet aucune donnée. Elle fonctionne comme un site statiq
 ## Utilisation
 
 1. Ouvrir l’onglet **Contrat** et saisir les données contractuelles, notamment la date de début, le nombre de semaines, les jours et heures hebdomadaires ainsi que les taux net et brut.
-2. Ouvrir **Déclaration**, choisir le mois et renseigner seulement les variables réelles du mois.
+2. Ouvrir **Mois**, choisir la période. Les jours réellement gardés et les repas sont préremplis avec les jours ouvrés prévus au contrat ; les corriger selon les présences réelles.
 3. Cliquer sur **Enregistrer cette simulation**. Créer autant de variantes que nécessaire.
-4. Reporter les six valeurs du bloc « Valeurs à reporter sur Pajemploi ».
-5. Cocher « saisie et validée sur Pajemploi » uniquement pour la variante réellement déclarée.
-6. Après validation, recopier si possible le salaire brut, le CMG et le prélèvement Pajemploi+ officiels.
-7. Exporter régulièrement la sauvegarde JSON depuis l’onglet **Sauvegarde**.
+4. Pour le dernier mois, ouvrir **Fin de contrat ce mois**, choisir **Oui**, contrôler la date et les propositions automatiques, puis compléter les éventuels montants de préavis ou de régularisation.
+5. Reporter les valeurs du bloc « Valeurs à reporter sur Pajemploi » et, le cas échéant, celles du bloc « Fin de contrat ».
+6. Appuyer sur **Confirmer la saisie sur Pajemploi** uniquement pour la variante réellement déclarée. Une fenêtre demande une seconde confirmation explicite.
+7. Après validation, recopier si possible le salaire brut, le CMG et le prélèvement Pajemploi+ officiels.
+8. Exporter régulièrement la sauvegarde JSON depuis l’onglet **Données**.
 
 ## Sauvegarde, restauration et mises à jour
 

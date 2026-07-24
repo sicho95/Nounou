@@ -270,6 +270,27 @@ label small { display: block; margin-top: 4px; }
   background: var(--primary-soft);
   font-size: .86rem;
 }
+.auto-info {
+  margin: 14px 0 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(10,132,255,.18);
+  border-radius: 12px;
+  color: #07559f;
+  background: var(--primary-soft);
+  font-size: .8rem;
+}
+.select-emphasis { margin-bottom: 14px; }
+.end-fields { margin-top: 14px; }
+.official-confirmation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+.official-confirmation p { margin: 4px 0 0; color: var(--muted); font-size: .82rem; }
+.official-confirmation.is-official { border-color: #bbf7d0; background: #f0fdf4; }
 .history-list { display: grid; gap: 10px; }
 .history-item {
   display: grid;
@@ -327,6 +348,9 @@ footer { padding: 20px 0 38px; color: var(--muted); text-align: center; font-siz
 :root[data-theme-effective="dark"] .check-line,
 :root[data-theme-effective="dark"] .card.inset { background: #242426; }
 :root[data-theme-effective="dark"] .formula-preview { color: #9acbff; background: #082d52; }
+:root[data-theme-effective="dark"] .auto-info { color: #9acbff; border-color: #124d7f; background: #082d52; }
+:root[data-theme-effective="dark"] .official-confirmation { border-color: #124d7f; background: #082d52; }
+:root[data-theme-effective="dark"] .official-confirmation.is-official { border-color: #166534; background: #092f1c; }
 :root[data-theme-effective="dark"] .button.secondary { color: #f5f5f7; border-color: #3a3a3c; background: #2c2c2e; }
 :root[data-theme-effective="dark"] .breakdown-row,
 :root[data-theme-effective="dark"] .totals > div,
@@ -384,6 +408,7 @@ footer { padding: 20px 0 38px; color: var(--muted); text-align: center; font-siz
   .history-actions .button { flex: 1 1 130px; }
   .totals { padding-inline: 15px; }
   .breakdown-row, .totals > div, .end-row { align-items: flex-start; }
+  .official-confirmation { align-items: stretch; flex-direction: column; }
 }
 :root[data-theme-effective="dark"] .tabs { background: rgba(28,28,30,.92); }
 @media print {
