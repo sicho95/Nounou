@@ -26,10 +26,10 @@ L’application ne transmet aucune donnée. Elle fonctionne comme un site statiq
 
 ## Utilisation
 
-1. Ouvrir l’onglet **Contrat** et saisir les données contractuelles, notamment la date de début, le nombre de semaines, les jours et heures hebdomadaires ainsi que les taux net et brut.
-2. Ouvrir **Mois**, choisir la période. Les jours réellement gardés et les repas sont préremplis avec les jours ouvrés prévus au contrat ; les corriger selon les présences réelles.
-3. Cliquer sur **Enregistrer cette simulation**. Créer autant de variantes que nécessaire.
-4. Pour le dernier mois, ouvrir **Fin de contrat ce mois**, choisir **Oui**, contrôler la date et les propositions automatiques, puis compléter les éventuels montants de préavis ou de régularisation.
+1. Ouvrir l’onglet **Contrat** et saisir les données contractuelles, notamment la date de début, le nombre de semaines, les jours et heures hebdomadaires ainsi que le taux net. Le taux brut indicatif est dérivé automatiquement.
+2. Ouvrir **Mois**, choisir la période. Les jours et heures réellement gardés ainsi que les repas sont préremplis avec le planning prévu au contrat ; les corriger selon les présences réelles.
+3. Cliquer sur **(Re)Calculer**. Créer autant de variantes que nécessaire.
+4. Pour le dernier mois, ouvrir **Fin de contrat ce mois**, choisir **Oui** et contrôler les propositions automatiques. L’écran **Fin** séparé ne demande que la date et le motif et calcule seul les montants du solde.
 5. Reporter les valeurs du bloc « Valeurs à reporter sur Pajemploi » et, le cas échéant, celles du bloc « Fin de contrat ».
 6. Appuyer sur **Confirmer la saisie sur Pajemploi** uniquement pour la variante réellement déclarée. Une fenêtre demande une seconde confirmation explicite.
 7. Après validation, recopier si possible le salaire brut, le CMG et le prélèvement Pajemploi+ officiels.
@@ -57,6 +57,6 @@ node --test
 
 ## Limites importantes
 
-NounouCalc est un outil d’aide et non un service de paie. Les absences, l’adaptation, les congés, la régularisation et la rupture peuvent dépendre de faits que le logiciel ne peut pas deviner. Le récapitulatif de l’Urssaf fait foi avant validation. Le dossier employeur n’est pas l’attestation France Travail officielle : celle-ci doit être générée et transmise via le service Pajemploi-France Travail, puis remise à la salariée.
+NounouCalc calcule automatiquement tout ce qui peut l’être à partir du contrat, des heures et jours réels et de l’historique confirmé. Il reste un outil d’aide et non un service de paie : une absence, un repas fourni par le parent ou un planning quotidien différent sont des faits que le logiciel ne peut pas deviner. Le récapitulatif de l’Urssaf fait foi avant validation. Le dossier employeur n’est pas l’attestation France Travail officielle : celle-ci doit être générée et transmise via le service Pajemploi-France Travail, puis remise à la salariée.
 
 Les règles et choix de calcul sont documentés dans [docs/REGLES_CALCUL.md](docs/REGLES_CALCUL.md).

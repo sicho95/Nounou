@@ -5,6 +5,7 @@ import {
   calculateEnd,
   contractBasis,
   defaultState,
+  estimatedGrossHourlyRate,
   leaveSummary,
   money,
   monthLabel,
@@ -30,7 +31,7 @@ const $ = id => document.getElementById(id);
 const contractIds = [
   "startDate", "contractType", "contractNumber", "lastJobTitle", "weeksPerYear", "daysPerWeek", "normalHoursPerWeek",
   "majorHoursPerWeek", "netHourlyRate", "grossHourlyRate", "majorMarkup",
-  "complementaryMarkup", "maintenanceRate", "mealRate", "employeeDependentChildrenUnder15",
+  "complementaryMarkup", "maintenanceRate", "mealRate", "partialMealRate", "employeeDependentChildrenUnder15",
   "cpPaymentMode", "cpPaymentMonth"
 ];
 const adminIds = [
@@ -46,6 +47,8 @@ const monthlyFields = {
   paymentDate: "paymentDate",
   actualDays: "actualDays",
   meals: "meals",
+  actualCareHours: "actualCareHours",
+  partialMeals: "partialMeals",
   complementaryHours: "complementaryHours",
   extraMajorHours: "extraMajorHours",
   absenceDeductionNet: "absenceDeductionNet",
@@ -305,10 +308,12 @@ function fillContract() {
   contractIds.forEach(id => setValue(id, state.contract[id]));
   adminIds.forEach(id => setValue(id, state.admin[id]));
   cmgIds.forEach(id => setValue(id, state.cmgProfile[id]));
+  refreshEstimatedGrossRate();
   updateContractPreview();
 }
 
 function saveContract(showMessage = true) {
+  refreshEstimatedGrossRate();
   state.contract = { ...state.contract, ...readValues(contractIds) };
   state.admin = { ...state.admin, ...readValues(adminIds) };
   state.cmgProfile = { ...state.cmgProfile, ...readValues(cmgIds) };
@@ -326,11 +331,17 @@ function defaultMonthly(period) {
     ? String(number(ref.key) - 1)
     : ref.key;
   const proposedDays = scheduledDaysInMonth(state.contract, period);
+  const weeklyHours = number(state.contract.normalHoursPerWeek) + number(state.contract.majorHoursPerWeek);
+  const proposedHours = number(state.contract.daysPerWeek) > 0
+    ? proposedDays * weeklyHours / number(state.contract.daysPerWeek)
+    : 0;
   return {
     period,
     paymentDate: lastDay(period),
     actualDays: proposedDays,
     meals: proposedDays,
+    actualCareHours: round(proposedHours, 2),
+    partialMeals: 0,
     autoLeaveAccrual: true,
     leaveAdjustmentWeeks: 0,
     complementaryHours: 0,
@@ -487,10 +498,10 @@ function calculateMonthlyEndSuggestions() {
   const result = calculateEnd(state.contract, declarations, {
     endDate: input.endDate,
     reason: input.endReason,
-    regularizationDueNet: 0,
-    regularizationPaidNet: 0,
+    regularizationDueNet: "",
+    regularizationPaidNet: "",
     endingCpNet: "",
-    lastSalaryNet: 0,
+    lastSalaryNet: "",
     ruptureIndemnityNet: "",
     precariousnessNet: ""
   });
@@ -498,6 +509,9 @@ function calculateMonthlyEndSuggestions() {
   setValue("endingCpNetMonthly", result.suggestedCpCompensation);
   setValue("endingCpDays", result.leaveBalance.remainingDays);
   setValue("ruptureIndemnityNet", result.suggestedRuptureIndemnity);
+  setValue("endingRegularizationNet", result.regularization);
+  setValue("endingCpGross", result.suggestedCpCompensationGross);
+  setValue("precariousnessGross", result.suggestedCddIndemnityGross);
   if (!$("legalRuptureAmount").value) setValue("legalRuptureAmount", result.suggestedRuptureIndemnity);
   $("endAutoInfo").innerHTML =
     `<strong>Proposition automatique :</strong> ${result.leaveBalance.remainingDays.toLocaleString("fr-FR")} jours de congés à solder, ` +
@@ -660,6 +674,12 @@ function renderOfficialConfirmation(record) {
   $("confirmOfficialButton").disabled = official;
 }
 
+function refreshEstimatedGrossRate() {
+  const field = $("grossHourlyRate");
+  const net = number($("netHourlyRate").value);
+  field.value = net ? estimatedGrossHourlyRate(net) : "";
+}
+
 function updateContractPreview() {
   const contract = { ...state.contract, ...readValues(contractIds) };
   const basis = contractBasis(contract);
@@ -689,6 +709,16 @@ function updatePeriodHints() {
     : isPaymentMonth
       ? "Le contrat prévoit un versement unique ce mois. Saisissez les jours et le montant calculé au 31 mai."
       : "Ne saisissez un montant que si la modalité contractuelle prévoit un paiement ce mois-ci.";
+}
+
+function updateActualActivityDefaults() {
+  const days = Math.max(0, number($("actualDays").value));
+  const weeklyHours = number(state.contract.normalHoursPerWeek) + number(state.contract.majorHoursPerWeek);
+  const hours = number(state.contract.daysPerWeek) > 0
+    ? days * weeklyHours / number(state.contract.daysPerWeek)
+    : 0;
+  setValue("actualCareHours", round(hours, 2));
+  if (!$("meals").value) setValue("meals", days);
 }
 
 function renderHistory() {
@@ -762,21 +792,40 @@ function calculateEnding() {
   const input = {
     endDate: $("endDate").value,
     reason: $("endReason").value,
-    regularizationDueNet: $("regularizationDueNet").value,
-    regularizationPaidNet: $("regularizationPaidNet").value,
-    endingCpNet: $("endingCpNet").value,
-    lastSalaryNet: $("lastSalaryNet").value
+    regularizationDueNet: "",
+    regularizationPaidNet: "",
+    endingCpNet: "",
+    lastSalaryNet: ""
   };
   if (!input.endDate || !state.contract.startDate) return alert("Renseignez les dates de début et de fin du contrat.");
-  const result = calculateEnd(state.contract, officialDeclarations(), input);
+  const declarations = { ...officialDeclarations() };
+  const endingPeriod = input.endDate.slice(0, 7);
+  let endingMonthEstimated = false;
+  if (!declarations[endingPeriod]) {
+    const endingDays = scheduledDaysInMonth(state.contract, endingPeriod, input.endDate);
+    const weeklyHours = number(state.contract.normalHoursPerWeek) + number(state.contract.majorHoursPerWeek);
+    const endingDraftInput = {
+      ...defaultMonthly(endingPeriod),
+      actualDays: endingDays,
+      actualCareHours: number(state.contract.daysPerWeek) > 0
+        ? round(endingDays * weeklyHours / number(state.contract.daysPerWeek), 2)
+        : 0,
+      meals: endingDays,
+      endDate: input.endDate,
+      monthNote: "Dernier mois estimé automatiquement pour la simulation de fin de contrat"
+    };
+    declarations[endingPeriod] = buildDraftRecord(endingDraftInput);
+    endingMonthEstimated = true;
+  }
+  const result = calculateEnd(state.contract, declarations, input);
   $("endBreakdown").innerHTML = [
     `<div class="end-row"><span>Ancienneté retenue</span><strong>${result.seniorityMonths} mois</strong></div>`,
     `<div class="end-row"><span>Salaires bruts historisés (${result.recordsCount} mois)</span><strong>${money(result.grossTotal)}</strong></div>`,
     `<div class="end-row"><span>Indemnité de rupture CDI (1/80 du brut)</span><strong>${money(result.ruptureIndemnity)}</strong></div>`,
     result.cddIndemnity ? `<div class="end-row"><span>Indemnité de fin de CDD (10 %)</span><strong>${money(result.cddIndemnity)}</strong></div>` : "",
-    `<div class="end-row"><span>Régularisation positive</span><strong>${money(result.regularization)}</strong></div>`,
-    `<div class="end-row"><span>Indemnité compensatrice de congés</span><strong>${money(result.cpCompensation)}</strong></div>`,
-    `<div class="end-row"><span>Dernier salaire et autres éléments</span><strong>${money(result.lastSalary)}</strong></div>`
+    `<div class="end-row"><span>Régularisation positive automatique<small>${money(result.regularizationDue)} dû au réel − ${money(result.regularizationPaid)} mensualisé</small></span><strong>${money(result.regularization)}</strong></div>`,
+    `<div class="end-row"><span>Indemnité compensatrice de congés<small>Plus favorable : maintien ${money(result.suggestedCpMaintenanceNet)} / dixième ${money(result.suggestedCpTenthNet)}</small></span><strong>${money(result.cpCompensation)}</strong></div>`,
+    `<div class="end-row"><span>Dernier salaire et indemnités d’accueil</span><strong>${money(result.lastSalary)}</strong></div>`
   ].join("");
   $("endTotal").textContent = money(result.total);
   $("endLeaveDays").textContent = result.leaveBalance.remainingWithProjection.toLocaleString("fr-FR");
@@ -785,8 +834,9 @@ function calculateEnding() {
     `${result.leaveBalance.paidDays.toLocaleString("fr-FR")} jours déjà payés sont déduits de leur période d’acquisition.`;
   const notes = [];
   if (!result.ruptureEligible && input.reason === "employer") notes.push("Pas d’indemnité de rupture calculée avant 9 mois d’ancienneté.");
-  if (result.grossMissing) notes.push("Au moins un mois n’a pas de salaire brut : le 1/80 est incomplet.");
+  if (result.grossMissing) notes.push("Le brut de certains mois est estimé depuis le net ; recopiez ensuite le brut des bulletins Pajemploi pour figer le 1/80 officiel.");
   if (result.estimatedMonthsCount) notes.push(`${result.estimatedMonthsCount} mois sans déclaration confirmée ont été estimés avec la mensualisation contractuelle.`);
+  if (endingMonthEstimated) notes.push("Le dernier mois n’est pas encore confirmé : il est inclus automatiquement avec les jours programmés jusqu’à la date de fin. Corrigez les présences dans l’onglet Mois avant la déclaration définitive.");
   if (number(state.contract.weeksPerYear) <= 46) notes.push("La régularisation ne peut être qu’à l’avantage de la salariée.");
   notes.push("Préavis, certificat de travail, reçu pour solde et attestation France Travail restent à traiter sur Pajemploi.");
   $("endNotes").textContent = notes.join(" ");
@@ -1195,6 +1245,7 @@ async function initialize() {
 
 document.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", () => showTab(tab.dataset.tab)));
 contractIds.forEach(id => $(id).addEventListener("input", () => {
+  if (id === "netHourlyRate") refreshEstimatedGrossRate();
   updateContractPreview();
   updateAutomaticLeaveInfo();
 }));
@@ -1205,6 +1256,7 @@ $("endDateMonthly").addEventListener("change", calculateMonthlyEndSuggestions);
 $("endReasonMonthly").addEventListener("change", calculateMonthlyEndSuggestions);
 $("recalculateEndButton").addEventListener("click", calculateMonthlyEndSuggestions);
 $("leaveAdjustmentWeeks").addEventListener("input", updateAutomaticLeaveInfo);
+$("actualDays").addEventListener("change", updateActualActivityDefaults);
 $("saveContractButton").addEventListener("click", () => saveContract(true));
 $("calculateButton").addEventListener("click", calculateAndSave);
 $("confirmOfficialButton").addEventListener("click", () => {

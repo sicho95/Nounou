@@ -17,6 +17,43 @@ export function money(value) {
   }).format(number(value));
 }
 
+export function estimatedGrossHourlyRate(netRate) {
+  const employeeContributionRatio2026 = 0.7811975;
+  return round(Math.max(0, number(netRate)) / employeeContributionRatio2026, 4);
+}
+
+export function maintenanceMinimumForPeriod(period) {
+  if ((period || "") >= "2026-06") return 3.92;
+  if ((period || "") >= "2026-01") return 3.83;
+  if ((period || "") >= "2025-01") return 3.80;
+  return 3.74;
+}
+
+export function calculateMaintenanceAllowance(contract, input) {
+  const days = Math.max(0, number(input.actualDays));
+  if (!days) return { total: 0, daily: 0, hours: 0, legalNineHours: maintenanceMinimumForPeriod(input.period) };
+  const weeklyHours = Math.max(0, number(contract.normalHoursPerWeek) + number(contract.majorHoursPerWeek));
+  const usualHoursPerDay = number(contract.daysPerWeek) > 0 ? weeklyHours / number(contract.daysPerWeek) : 0;
+  const actualHours = Math.max(0, number(input.actualCareHours, days * usualHoursPerDay));
+  const averageHoursPerDay = actualHours / days;
+  const legalNineHours = maintenanceMinimumForPeriod(input.period);
+  const agreedUsualDay = Math.max(0, number(contract.maintenanceRate));
+  const agreedProrated = agreedUsualDay > 0 && usualHoursPerDay > 0
+    ? agreedUsualDay * averageHoursPerDay / usualHoursPerDay
+    : 0;
+  const legalProrated = legalNineHours * averageHoursPerDay / 9;
+  const daily = round(Math.max(2.65, agreedProrated, legalProrated));
+  return {
+    total: round(daily * days),
+    daily,
+    hours: round(actualHours, 2),
+    averageHoursPerDay: round(averageHoursPerDay, 4),
+    legalNineHours,
+    agreedUsualDay,
+    legalProrated: round(legalProrated, 4)
+  };
+}
+
 export function monthLabel(period) {
   if (!/^\d{4}-\d{2}$/.test(period || "")) return "Période inconnue";
   const [year, month] = period.split("-").map(Number);
@@ -108,7 +145,7 @@ export function contractBasis(contract) {
 
   return {
     daysExact: round(daysExact, 4),
-    declaredDays: Math.round(daysExact),
+    declaredDays: Math.ceil(daysExact - 1e-9),
     normalHoursExact: round(normalExact, 4),
     declaredNormalHours: Math.round(normalExact),
     majorHoursExact: round(majorExact, 4),
@@ -119,7 +156,7 @@ export function contractBasis(contract) {
 export function calculateDeclaration(contract, input) {
   const basis = contractBasis(contract);
   const netRate = Math.max(0, number(contract.netHourlyRate));
-  const grossRate = Math.max(0, number(contract.grossHourlyRate));
+  const grossRate = Math.max(0, number(contract.grossHourlyRate) || estimatedGrossHourlyRate(netRate));
   const majorFactor = 1 + Math.max(0, number(contract.majorMarkup)) / 100;
   const complementaryFactor = 1 + Math.max(0, number(contract.complementaryMarkup)) / 100;
   const complementaryHours = Math.max(0, number(input.complementaryHours));
@@ -150,8 +187,10 @@ export function calculateDeclaration(contract, input) {
     : 0;
   const officialGross = Math.max(0, number(input.officialGross));
 
-  const maintenance = Math.max(0, number(input.actualDays)) * Math.max(0, number(contract.maintenanceRate));
-  const meals = Math.max(0, number(input.meals)) * Math.max(0, number(contract.mealRate));
+  const maintenanceCalculation = calculateMaintenanceAllowance(contract, input);
+  const maintenance = maintenanceCalculation.total;
+  const meals = Math.max(0, number(input.meals)) * Math.max(0, number(contract.mealRate)) +
+    Math.max(0, number(input.partialMeals)) * Math.max(0, number(contract.partialMealRate));
   const kilometers = Math.max(0, number(input.kilometerAllowance));
   const advancePaid = Math.max(0, number(input.advancePaid));
   const accrualWeeks = input.autoLeaveAccrual === false
@@ -203,7 +242,8 @@ export function calculateDeclaration(contract, input) {
       maintenance: round(maintenance),
       meals: round(meals),
       kilometers: round(kilometers),
-      total: round(maintenance + meals + kilometers)
+      total: round(maintenance + meals + kilometers),
+      maintenanceCalculation
     },
     advancePaid: round(advancePaid),
     totalToPay: round(Math.max(0, netSalary + maintenance + meals + kilometers + ruptureIndemnityNet - advancePaid)),
@@ -437,52 +477,86 @@ export function calculateEnd(contract, declarations, input) {
   const recordsByPeriod = Object.fromEntries(Object.values(declarations || {}).map(item => [recordPeriod(item), item]));
   const contractMonths = periodsBetween(startDate, endDate);
   const basis = contractBasis(contract);
-  const estimatedMonthlyGross = number(contract.grossHourlyRate) > 0
-    ? basis.normalHoursExact * number(contract.grossHourlyRate) +
-      basis.majorHoursExact * number(contract.grossHourlyRate) * (1 + number(contract.majorMarkup) / 100)
-    : 0;
+  const grossRate = number(contract.grossHourlyRate) || estimatedGrossHourlyRate(contract.netHourlyRate);
+  const estimatedMonthlyGross = basis.normalHoursExact * grossRate +
+    basis.majorHoursExact * grossRate * (1 + number(contract.majorMarkup) / 100);
   const records = Object.values(recordsByPeriod).filter(item => {
     const period = recordPeriod(item);
     return period && (!endDate || `${period}-01` <= endDate);
   });
   const grossTotal = round(contractMonths.reduce((sum, period) => {
-    return sum + number(recordsByPeriod[period]?.results?.salary?.grossForHistory, estimatedMonthlyGross);
+    const recordedGross = number(recordsByPeriod[period]?.results?.salary?.grossForHistory);
+    return sum + (recordedGross || estimatedMonthlyGross);
   }, 0));
   const seniorityMonths = completedMonths(startDate, endDate);
   const reason = input.reason;
   const ruptureEligible = reason === "death" || (reason === "employer" && seniorityMonths >= 9);
   const suggestedRuptureIndemnity = ruptureEligible ? round(grossTotal / 80) : 0;
-  const grossToNetRatio = number(contract.grossHourlyRate) > 0
-    ? Math.min(1, number(contract.netHourlyRate) / number(contract.grossHourlyRate))
+  const grossToNetRatio = grossRate > 0
+    ? Math.min(1, number(contract.netHourlyRate) / grossRate)
     : 1;
-  const suggestedCddIndemnity = reason === "cdd" ? round(grossTotal * 0.10 * grossToNetRatio) : 0;
+  const suggestedCddIndemnityGross = reason === "cdd" ? round(grossTotal * 0.10) : 0;
+  const suggestedCddIndemnity = round(suggestedCddIndemnityGross * grossToNetRatio);
   const ruptureIndemnity = input.ruptureIndemnityNet === "" || input.ruptureIndemnityNet == null
     ? suggestedRuptureIndemnity
     : Math.max(0, number(input.ruptureIndemnityNet));
   const cddIndemnity = input.precariousnessNet === "" || input.precariousnessNet == null
     ? suggestedCddIndemnity
     : Math.max(0, number(input.precariousnessNet));
-  const regularization = round(Math.max(0, number(input.regularizationDueNet) - number(input.regularizationPaidNet)));
+  const weeklyHours = number(contract.normalHoursPerWeek) + number(contract.majorHoursPerWeek);
+  const weeklyNet = number(contract.normalHoursPerWeek) * number(contract.netHourlyRate) +
+    number(contract.majorHoursPerWeek) * number(contract.netHourlyRate) * (1 + number(contract.majorMarkup) / 100);
+  const automaticRegularizationDue = round(records.reduce((sum, record) => {
+    const actualHours = number(record.input?.actualCareHours);
+    const fallbackWeeks = number(contract.daysPerWeek) > 0
+      ? number(record.input?.actualDays) / number(contract.daysPerWeek)
+      : 0;
+    const workedWeeks = actualHours > 0 && weeklyHours > 0 ? actualHours / weeklyHours : fallbackWeeks;
+    return sum + workedWeeks * weeklyNet;
+  }, 0));
+  const automaticRegularizationPaid = round(records.reduce((sum, record) => {
+    const salary = record.results?.salary || {};
+    return sum + number(salary.normalNet) + number(salary.contractMajorNet) - number(salary.absenceDeductionNet);
+  }, 0));
+  const regularizationDue = input.regularizationDueNet === "" || input.regularizationDueNet == null
+    ? automaticRegularizationDue
+    : number(input.regularizationDueNet);
+  const regularizationPaid = input.regularizationPaidNet === "" || input.regularizationPaidNet == null
+    ? automaticRegularizationPaid
+    : number(input.regularizationPaidNet);
+  const regularization = round(Math.max(0, regularizationDue - regularizationPaid));
   const leaveBalance = globalLeaveBalance(contract, declarations, endDate);
-  const hoursPerDay = number(contract.daysPerWeek) > 0
-    ? number(contract.normalHoursPerWeek) / number(contract.daysPerWeek)
-    : 0;
-  const suggestedCpMaintenanceNet = round(leaveBalance.remainingDays * hoursPerDay * number(contract.netHourlyRate));
+  const suggestedCpMaintenanceNet = round(leaveBalance.remainingDays / 6 * weeklyNet);
   const grossByReference = {};
   for (const period of contractMonths) {
     const key = referencePeriod(period).key;
     grossByReference[key] = number(grossByReference[key]) +
-      number(recordsByPeriod[period]?.results?.salary?.grossForHistory, estimatedMonthlyGross);
+      (number(recordsByPeriod[period]?.results?.salary?.grossForHistory) || estimatedMonthlyGross);
   }
-  const suggestedCpTenthNet = round(Object.entries(leaveBalance.periods).reduce((sum, [key, item]) => {
+  const suggestedCpTenthGross = round(Object.entries(leaveBalance.periods).reduce((sum, [key, item]) => {
     const ratioUnpaid = item.totalDays > 0 ? item.remainingDays / item.totalDays : 0;
-    return sum + number(grossByReference[key]) * 0.10 * grossToNetRatio * ratioUnpaid;
+    return sum + number(grossByReference[key]) * 0.10 * ratioUnpaid;
   }, 0));
+  const suggestedCpTenthNet = round(suggestedCpTenthGross * grossToNetRatio);
+  const suggestedCpMaintenanceGross = round(grossToNetRatio > 0
+    ? suggestedCpMaintenanceNet / grossToNetRatio
+    : suggestedCpMaintenanceNet);
   const suggestedCpCompensation = Math.max(suggestedCpMaintenanceNet, suggestedCpTenthNet);
+  const suggestedCpCompensationGross = suggestedCpMaintenanceNet >= suggestedCpTenthNet
+    ? suggestedCpMaintenanceGross
+    : suggestedCpTenthGross;
   const cpCompensation = input.endingCpNet === "" || input.endingCpNet == null
     ? suggestedCpCompensation
     : round(Math.max(0, number(input.endingCpNet)));
-  const lastSalary = round(Math.max(0, number(input.lastSalaryNet)));
+  const endingPeriod = endDate?.slice(0, 7);
+  const endingRecord = recordsByPeriod[endingPeriod];
+  const automaticLastSalary = endingRecord ? round(
+    number(endingRecord.results?.totalToPay) -
+    number(endingRecord.results?.ending?.total)
+  ) : 0;
+  const lastSalary = input.lastSalaryNet === "" || input.lastSalaryNet == null
+    ? automaticLastSalary
+    : round(Math.max(0, number(input.lastSalaryNet)));
   leaveBalance.projectedAcquiredDays = 0;
   leaveBalance.remainingWithProjection = leaveBalance.remainingDays;
   const total = round(ruptureIndemnity + cddIndemnity + regularization + cpCompensation + lastSalary);
@@ -495,15 +569,24 @@ export function calculateEnd(contract, declarations, input) {
     cddIndemnity,
     suggestedRuptureIndemnity,
     suggestedCddIndemnity,
+    suggestedCddIndemnityGross,
     regularization,
     cpCompensation,
     suggestedCpCompensation,
+    suggestedCpCompensationGross,
     suggestedCpMaintenanceNet,
+    suggestedCpMaintenanceGross,
     suggestedCpTenthNet,
+    suggestedCpTenthGross,
+    regularizationDue,
+    regularizationPaid,
+    automaticRegularizationDue,
+    automaticRegularizationPaid,
     lastSalary,
     leaveBalance,
     total,
-    grossMissing: number(contract.grossHourlyRate) <= 0 && records.some(item => !number(item.results?.salary?.grossForHistory)),
+    grossMissing: records.some(item => !number(item.input?.officialGross)),
+    grossEstimated: records.some(item => item.results?.salary?.grossSource !== "official"),
     recordsCount: records.length,
     estimatedMonthsCount: contractMonths.filter(period => !recordsByPeriod[period]).length
   };
@@ -547,8 +630,9 @@ export function defaultState() {
       grossHourlyRate: 0,
       majorMarkup: 25,
       complementaryMarkup: 0,
-      maintenanceRate: 3.8,
+      maintenanceRate: 0,
       mealRate: 4,
+      partialMealRate: 0,
       employeeDependentChildrenUnder15: 0,
       cpPaymentMode: "june",
       cpPaymentMonth: 6

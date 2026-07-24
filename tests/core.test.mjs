@@ -4,8 +4,10 @@ import {
   calculateCmg,
   calculateDeclaration,
   calculateEnd,
+  calculateMaintenanceAllowance,
   contractBasis,
   defaultState,
+  estimatedGrossHourlyRate,
   globalLeaveBalance,
   leaveSummary,
   referencePeriod,
@@ -38,7 +40,7 @@ test("prévoit les identifiants nécessaires au mémo France Travail", () => {
 test("calcule les bases mensualisées et leurs arrondis déclaratifs", () => {
   const basis = contractBasis(contract);
   assert.equal(basis.daysExact, 19.1667);
-  assert.equal(basis.declaredDays, 19);
+  assert.equal(basis.declaredDays, 20);
   assert.equal(basis.normalHoursExact, 153.3333);
   assert.equal(basis.declaredNormalHours, 153);
   assert.equal(basis.declaredContractMajorHours, 8);
@@ -63,7 +65,7 @@ test("sépare salaire exact, heures déclarées et indemnités", () => {
     absenceDeductionNet: 10,
     officialGross: ""
   });
-  assert.equal(result.declared.days, 19);
+  assert.equal(result.declared.days, 20);
   assert.equal(result.declared.normalHours, 153);
   assert.equal(result.declared.complementaryHours, 2);
   assert.equal(result.declared.majorHours, 9);
@@ -156,6 +158,38 @@ test("propose automatiquement les jours ouvrés du mois", () => {
   const julyContract = { ...contract, startDate: "2025-09-08", daysPerWeek: 5 };
   assert.equal(scheduledDaysInMonth(julyContract, "2026-07"), 23);
   assert.equal(scheduledDaysInMonth(julyContract, "2026-07", "2026-07-24"), 18);
+});
+
+test("arrondit les jours mensualisés à l'entier supérieur comme l'exemple Urssaf", () => {
+  const basis = contractBasis({ ...contract, weeksPerYear: 52, daysPerWeek: 4 });
+  assert.equal(basis.daysExact, 17.3333);
+  assert.equal(basis.declaredDays, 18);
+});
+
+test("applique automatiquement le minimum d'entretien 2026 selon les heures réelles", () => {
+  const beforeJune = calculateMaintenanceAllowance(
+    { ...contract, maintenanceRate: 0, normalHoursPerWeek: 50, majorHoursPerWeek: 0 },
+    { period: "2026-05", actualDays: 16, actualCareHours: 160 }
+  );
+  const afterJune = calculateMaintenanceAllowance(
+    { ...contract, maintenanceRate: 0, normalHoursPerWeek: 50, majorHoursPerWeek: 0 },
+    { period: "2026-06", actualDays: 22, actualCareHours: 220 }
+  );
+  assert.equal(beforeJune.daily, 4.26);
+  assert.equal(beforeJune.total, 68.16);
+  assert.equal(afterJune.daily, 4.36);
+  assert.equal(afterJune.total, 95.92);
+});
+
+test("estime le brut automatiquement quand seul le taux net est connu", () => {
+  assert.equal(estimatedGrossHourlyRate(4.6), 5.8884);
+  const result = calculateDeclaration({ ...contract, grossHourlyRate: 0 }, {
+    period: "2026-07",
+    actualDays: 20,
+    meals: 20
+  });
+  assert.equal(result.salary.grossSource, "estimated");
+  assert.ok(result.salary.estimatedGross > result.salary.netSalary);
 });
 
 test("retrouve les 2,75 jours acquis en juin montrés par NounouTop", () => {
@@ -260,6 +294,39 @@ test("calcule l'indemnité de rupture après neuf mois avec estimation des mois 
   assert.equal(result.regularization, 50);
   assert.equal(result.total, 865.31);
   assert.equal(result.estimatedMonthsCount, 9);
+});
+
+test("calcule la régularisation, les congés et le dernier salaire sans montant saisi", () => {
+  const input = {
+    period: "2026-09",
+    actualDays: 20,
+    actualCareHours: 168,
+    meals: 20,
+    partialMeals: 0,
+    complementaryHours: 0,
+    extraMajorHours: 0,
+    cpDaysDeclared: 0,
+    cpPaidNet: 0,
+    absenceDeductionNet: 0,
+    otherSalaryNet: 0,
+    kilometerAllowance: 0,
+    advancePaid: 0,
+    isEndContract: "no"
+  };
+  const declaration = { period: input.period, input, results: calculateDeclaration(contract, input) };
+  const result = calculateEnd(contract, { "2026-09": declaration }, {
+    endDate: "2026-09-30",
+    reason: "employer",
+    regularizationDueNet: "",
+    regularizationPaidNet: "",
+    endingCpNet: "",
+    lastSalaryNet: ""
+  });
+
+  assert.ok(result.regularization > 0);
+  assert.ok(result.cpCompensation > 0);
+  assert.equal(result.lastSalary, declaration.results.totalToPay);
+  assert.equal(result.total, Number((result.regularization + result.cpCompensation + result.lastSalary).toFixed(2)));
 });
 
 test("estime le CMG 2026 avec ressources N-2, enfants et coût horaire", () => {

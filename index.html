@@ -92,6 +92,14 @@
             <input id="meals" type="number" min="0" step="1">
             <small>Prérempli comme les jours gardés, modifiable si certains repas ne sont pas fournis.</small>
           </label>
+          <label>Heures réelles d’accueil
+            <input id="actualCareHours" type="number" min="0" step="0.25">
+            <small>Préremplies depuis le contrat. Elles permettent de calculer automatiquement l’entretien légal.</small>
+          </label>
+          <label>Jours avec repas partiel
+            <input id="partialMeals" type="number" min="0" step="1" value="0">
+            <small>Par exemple un déjeuner sans goûter lors d’une dernière journée écourtée.</small>
+          </label>
         </div>
         <p id="automaticLeaveInfo" class="auto-info"></p>
       </details>
@@ -321,7 +329,7 @@
         </div>
       </details>
 
-      <button id="calculateButton" class="button primary">Enregistrer cette simulation</button>
+      <button id="calculateButton" class="button primary">(Re)Calculer</button>
 
       <section id="results" class="results hidden" aria-live="polite">
         <div class="section-heading">
@@ -466,8 +474,9 @@
           <label>Taux horaire net
             <input id="netHourlyRate" type="number" min="0" step="0.01" value="4">
           </label>
-          <label>Taux horaire brut
-            <input id="grossHourlyRate" type="number" min="0" step="0.01" placeholder="Recommandé">
+          <label>Taux horaire brut estimé
+            <input id="grossHourlyRate" type="number" min="0" step="0.0001" readonly>
+            <small>Calculé automatiquement à partir du net. Le brut du bulletin Pajemploi reste prioritaire.</small>
           </label>
           <label>Majoration au-delà de 45 h
             <input id="majorMarkup" type="number" min="0" step="0.01" value="25">
@@ -477,11 +486,16 @@
             <input id="complementaryMarkup" type="number" min="0" step="0.01" value="0">
             <small>Seulement si elle est écrite au contrat.</small>
           </label>
-          <label>Indemnité entretien / jour
-            <input id="maintenanceRate" type="number" min="0" step="0.01" value="3.8">
+          <label>Entretien contractuel / journée habituelle
+            <input id="maintenanceRate" type="number" min="0" step="0.01" value="0">
+            <small>Laisser 0 pour appliquer automatiquement le minimum légal selon les heures réelles.</small>
           </label>
-          <label>Indemnité repas / repas
+          <label>Repas complet / jour
             <input id="mealRate" type="number" min="0" step="0.01" value="4">
+          </label>
+          <label>Repas partiel / jour
+            <input id="partialMealRate" type="number" min="0" step="0.01" value="0">
+            <small>Facultatif : déjeuner ou goûter seul, selon le contrat.</small>
           </label>
           <label>Enfants de moins de 15 ans à charge de la salariée
             <input id="employeeDependentChildrenUnder15" type="number" min="0" step="1" value="0">
@@ -625,7 +639,7 @@
         </div>
       </div>
       <div class="notice warning">
-        La régularisation et les congés doivent être confirmés avec les plannings et bulletins. Ce calculateur prépare les montants, il ne remplace pas les documents officiels Pajemploi.
+        La régularisation, les congés, le dernier salaire et l’indemnité de rupture sont calculés automatiquement à partir du contrat et des déclarations confirmées. Les documents Pajemploi restent la référence officielle.
       </div>
       <div class="card">
         <div class="form-grid two">
@@ -643,21 +657,10 @@
               <option value="cdd">Fin de CDD</option>
             </select>
           </label>
-          <label>Salaire net dû au réel sur la période de régularisation
-            <input id="regularizationDueNet" type="number" min="0" step="0.01" value="0">
-          </label>
-          <label>Salaires nets mensualisés déjà versés sur cette période
-            <input id="regularizationPaidNet" type="number" min="0" step="0.01" value="0">
-          </label>
-          <label>Indemnité compensatrice de congés payés nette
-            <input id="endingCpNet" type="number" min="0" step="0.01" value="0">
-          </label>
-          <label>Dernier salaire net et autres éléments
-            <input id="lastSalaryNet" type="number" min="0" step="0.01" value="0">
-          </label>
         </div>
+        <p class="auto-info"><strong>Aucune somme à saisir ici.</strong> Confirmez d’abord les mois réellement déclarés dans l’historique, puis choisissez seulement la date et le motif.</p>
       </div>
-      <button id="calculateEndButton" class="button primary">Calculer le solde indicatif</button>
+      <button id="calculateEndButton" class="button primary">Calculer automatiquement</button>
       <div id="endResults" class="results hidden">
         <div class="card breakdown">
           <h3>Solde préparatoire</h3>

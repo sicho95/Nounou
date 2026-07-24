@@ -38,11 +38,28 @@ Les heures majorées affichées pour le mois regroupent la part mensualisée pr�
 
 Pour une garde mensualisée, le nombre de jours déclaré est le nombre de jours mensualisés, pas le nombre de présences réelles. Les présences réelles servent au calcul des indemnités.
 
-Le nombre exact est arrondi à l’entier le plus proche pour la saisie, comme dans le modèle NounouTop fourni (19 jours mensualisés). Le nombre de jours réellement gardés reste saisi séparément et sert exclusivement aux indemnités d’entretien. Le nombre de jours avec repas est également distinct.
+Le nombre exact de jours mensualisés est arrondi à l’entier supérieur pour la saisie Pajemploi. Les heures mensualisées sont arrondies à l’entier le plus proche. Le salaire reste calculé sur les valeurs exactes, avant cet arrondi déclaratif.
+
+Le nombre de jours et d’heures réellement gardés reste saisi séparément. Il sert aux indemnités d’entretien, mais ne remplace pas les jours mensualisés à déclarer. Les nombres de repas complets et partiels sont également distincts.
 
 Lors de la création d’un mois, NounouCalc propose par défaut les jours d’accueil programmés qui tombent du lundi au vendredi dans la période sélectionnée. Pour un contrat de cinq jours, juillet 2026 propose donc 23 jours, ou 18 jours si le contrat se termine le 24 juillet. Cette proposition doit être corrigée selon les présences réelles ; elle ne remplace pas le calendrier de garde.
 
-En cas d’absence non rémunérée, la déclaration peut demander des valeurs réelles spécifiques. NounouCalc laisse alors la déduction nette à saisir et affiche un avertissement ; une future version pourra intégrer le calcul conventionnel complet selon le planning.
+L’indemnité d’entretien est calculée automatiquement à partir des heures réellement accueillies :
+
+```text
+minimum légal proratisé =
+  minimum légal pour 9 heures × heures réelles du jour ÷ 9
+
+indemnité journalière =
+  maximum entre 2,65 €, le minimum légal proratisé
+  et le montant contractuel proratisé lorsqu’il est plus favorable
+```
+
+Le minimum de référence pour neuf heures est de 3,80 € en 2025, 3,83 € de janvier à mai 2026 et 3,92 € depuis juin 2026. Le total mensuel est la somme des indemnités journalières arrondies au centime. Si tous les jours ont la même durée, NounouCalc applique cette durée moyenne à chaque journée.
+
+Les repas n’ont pas de tarif légal unique : les tarifs des repas complets et partiels sont définis au contrat. Le montant mensuel est calculé automatiquement en multipliant chaque quantité réelle par son tarif. Aucun repas n’est compté lorsque le parent fournit le repas.
+
+En cas d’absence non rémunérée, la déclaration peut demander des valeurs réelles spécifiques. NounouCalc laisse alors la déduction nette à saisir et affiche un avertissement ; le planning quotidien complet n’étant pas connu, ce fait ne peut pas être déduit de la seule mensualisation.
 
 ## 4. Congés payés
 
@@ -73,14 +90,14 @@ droits restant après paiement de juin
 = jours restant à indemniser à la rupture
 ```
 
-La simulation de fin de contrat additionne automatiquement les droits acquis jusqu’à la date de fin et déduit les jours déjà payés dans les seules déclarations Pajemploi confirmées. Elle propose l’indemnité compensatrice la plus favorable entre le maintien de salaire et le dixième. La proposition reste modifiable avant enregistrement.
+La simulation de fin de contrat additionne automatiquement les droits acquis jusqu’à la date de fin et déduit les jours déjà payés dans les seules déclarations Pajemploi confirmées. Elle calcule l’indemnité compensatrice la plus favorable entre le maintien de salaire et le dixième.
 
 Pour un accueil sur 46 semaines ou moins, le montant est calculé au 31 mai par comparaison entre :
 
 - le maintien de salaire ;
 - le dixième de la rémunération brute de la période.
 
-Le plus favorable doit être retenu. Ce montant n’est pas automatiquement inventé par l’application : l’utilisateur le saisit après son calcul ou sa vérification. Le paiement mensuel par douzième n’est pas proposé.
+Le plus favorable est retenu automatiquement. Le paiement mensuel par douzième n’est pas proposé.
 
 ## 5. Fin de contrat
 
@@ -90,20 +107,26 @@ Pour un CDI rompu par retrait de l’enfant, l’indemnité de rupture est calcu
 total des salaires bruts historisés ÷ 80
 ```
 
-Les indemnités d’entretien et de repas sont exclues. Un salaire brut officiel saisi après chaque déclaration est prioritaire ; sinon l’estimation issue du taux brut contractuel est utilisée.
+Les indemnités d’entretien et de repas sont exclues. Le contrat ne demande plus de taux brut : il est estimé automatiquement depuis le taux net avec le rapport de cotisations 2026. Un salaire brut officiel recopié après chaque déclaration reste prioritaire pour figer le calcul France Travail et le 1/80 exact.
 
 Pour une fin de CDD, l’outil affiche 10 % de la rémunération brute historisée. Les cas d’exclusion restent à vérifier.
 
-En accueil sur 46 semaines ou moins, la régularisation compare le salaire dû au réel et les mensualisations déjà versées. Seule une différence favorable à la salariée est ajoutée.
+En accueil sur 46 semaines ou moins, la régularisation compare automatiquement le salaire dû pour les semaines réellement accueillies aux mensualisations déjà versées. Seule une différence favorable à la salariée est ajoutée.
 
 La fin de contrat est intégrée à la déclaration du dernier mois. Les champs proposés correspondent à la rubrique Pajemploi : date et motif de fin, prime de précarité, indemnité compensatrice de congés payés et jours soldés, indemnité compensatrice de préavis, indemnité de rupture et régularisation de salaire.
 
-L’indemnité compensatrice de congés, le préavis, la précarité et la régularisation sont ajoutés au salaire net déclaré. L’indemnité de rupture est ajoutée au total à verser mais reste isolée dans le récapitulatif. La proposition automatique utilise les déclarations confirmées ; les mois manquants sont estimés à partir de la mensualisation contractuelle et sont signalés.
+L’indemnité compensatrice de congés, le préavis, la précarité et la régularisation sont ajoutés au salaire net déclaré. L’indemnité de rupture est ajoutée au total à verser mais reste isolée dans le récapitulatif. L’écran « Fin » ne demande que la date et le motif. Il calcule automatiquement la régularisation, les congés, le dernier salaire, la précarité éventuelle et la rupture. Si le dernier mois n’est pas encore confirmé, il est estimé avec les jours programmés jusqu’à la date de fin et clairement signalé.
 
 ## 6. Sources officielles
 
 - Urssaf, « Comment déclarer avec le service Pajemploi ? »  
   https://www.urssaf.fr/accueil/services/services-particuliers/service-pajemploi/declarer-service-pajemploi.html
+- Urssaf, « Taux et barèmes applicables aux assistants maternels »
+  https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/taux-baremes-assistant-maternel.html
+- Urssaf, « Gestion des congés payés »
+  https://www.urssaf.fr/accueil/particulier/particulier-employeur/gerer-les-absences/gestion-conges-payes.html
+- Urssaf, « Absences du salarié »
+  https://www.urssaf.fr/accueil/particulier/particulier-employeur/gerer-les-absences/absences-salaries-domicile.html
 - Convention collective IDCC 3239, articles 96, 102, 108 à 111 et 123  
   https://www.legifrance.gouv.fr/conv_coll/id/KALITEXT000043941642/
 - Service-Public, « Congés payés d’une assistante maternelle »  
