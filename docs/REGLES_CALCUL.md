@@ -165,3 +165,28 @@ Il est écrit simultanément :
 3. dans un fichier JSON complet à la demande de l’utilisateur.
 
 Le cache du service worker ne contient que le code de l’application, jamais la base métier. Le dernier commit de la branche `main` est utilisé comme identifiant technique de mise à jour, avec `build.json` en solution de repli. Avant une actualisation automatique du code, le formulaire en cours est conservé dans la mémoire de session puis restauré après rechargement.
+
+## 9. Mémo pour l’attestation France Travail
+
+Le dossier employeur imprimé contient une section préparatoire France Travail construite uniquement à partir des déclarations Pajemploi confirmées. Il reprend :
+
+- les coordonnées, téléphones et dates de naissance des employeurs ;
+- l’identité de la salariée, son adresse, sa naissance, son NIR, sa nationalité et le régime unifié AGIRC-ARRCO ;
+- la nature et le numéro du contrat, l’emploi tenu, la période d’emploi et l’horaire hebdomadaire ;
+- le motif et la date de fin, la date de notification et la situation du préavis ;
+- pour chaque période de paie : date de paiement, temps travaillé ou payé exact recopié du bulletin, jours/heures non intégralement payés, salaire brut officiel, prime brute et observations ;
+- les arrêts, absences et suspensions enregistrés ;
+- le dernier salaire et les indemnités brutes et nettes versées à la rupture.
+
+Le salaire brut estimé à partir du taux contractuel est explicitement marqué « estimé ». Il doit être remplacé par le salaire brut figurant sur le bulletin Pajemploi avant la saisie officielle. De même, l’indemnité compensatrice de congés payés brute et les autres indemnités doivent être recopiées depuis le solde officiel. Lorsque le temps payé exact manque, le dossier propose la somme des heures normales, complémentaires et majorées calculées par NounouCalc.
+
+Le formulaire simplifié France Travail de mars 2025 demande les 25 derniers mois de salaire, ou les 37 derniers mois lorsque la salariée a 55 ans ou plus à la rupture. Le dossier conserve tout l’historique disponible afin de ne pas supprimer les mois utiles.
+
+Sources officielles :
+
+- France Travail, « Je suis particulier employeur : comment compléter l’attestation France Travail ? »
+  https://www.francetravail.fr/employeur/vous-etes-un-particulier-employe/vous-cessez-demployer-a-domicile/comment-saisir-en-ligne-lattesta.html
+- France Travail, « Attestation simplifiée des particuliers employeurs », mars 2025
+  https://www.francetravail.fr/files/live/sites/PE/files/fichiers-en-telechargement/fichiers-en-telechargement---emp/Attestation-employeurParticulier
+- France Travail, service Pajemploi-France Travail
+  https://www.francetravail.fr/employeur/vous-etes-un-particulier-employe/nouveau-service-pajemploi--pole.html

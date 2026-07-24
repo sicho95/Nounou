@@ -28,14 +28,17 @@ const clone = value => globalThis.structuredClone
   : JSON.parse(JSON.stringify(value));
 const $ = id => document.getElementById(id);
 const contractIds = [
-  "startDate", "contractType", "weeksPerYear", "daysPerWeek", "normalHoursPerWeek",
+  "startDate", "contractType", "contractNumber", "lastJobTitle", "weeksPerYear", "daysPerWeek", "normalHoursPerWeek",
   "majorHoursPerWeek", "netHourlyRate", "grossHourlyRate", "majorMarkup",
   "complementaryMarkup", "maintenanceRate", "mealRate", "employeeDependentChildrenUnder15",
   "cpPaymentMode", "cpPaymentMonth"
 ];
 const adminIds = [
-  "employerName", "employerPajemploi", "employerAddress", "employeeName", "employeeNumber",
-  "employeeAddress", "approvalNumber", "childName", "childBirthDate"
+  "employerName", "employerPajemploi", "employerAddress", "employerPhone", "employerBirthDate",
+  "secondaryEmployerName", "secondaryEmployerAddress", "secondaryEmployerPhone", "secondaryEmployerBirthDate",
+  "employeeName", "employeeNumber", "employeeAddress", "employeeBirthDate", "employeeBirthPlace",
+  "employeeBirthDepartment", "employeeNationality", "employeeRetirementFund",
+  "approvalNumber", "childName", "childBirthDate"
 ];
 const cmgIds = ["annualResourcesN2", "dependentChildren", "aeeh"];
 const monthlyFields = {
@@ -56,15 +59,32 @@ const monthlyFields = {
   specificHours: "specificHours",
   over24Hours: "over24Hours",
   disabilityCare: "disabilityCare",
+  franceTravailPaidHours: "franceTravailPaidHours",
+  unpaidHours: "unpaidHours",
+  unpaidDays: "unpaidDays",
+  absenceType: "absenceType",
+  absenceStartDate: "absenceStartDate",
+  absenceEndDate: "absenceEndDate",
+  bonusType: "bonusType",
+  bonusGross: "bonusGross",
+  bonusPaymentDate: "bonusPaymentDate",
   isEndContract: "isEndContract",
   endDate: "endDateMonthly",
   endReason: "endReasonMonthly",
+  terminationNotificationDate: "terminationNotificationDate",
+  noticeStatus: "noticeStatus",
+  noticeStartDate: "noticeStartDate",
+  noticeEndDate: "noticeEndDate",
   precariousnessNet: "precariousnessNet",
   endingCpNet: "endingCpNetMonthly",
   endingCpDays: "endingCpDays",
   noticeCompensationNet: "noticeCompensationNet",
   ruptureIndemnityNet: "ruptureIndemnityNet",
   endingRegularizationNet: "endingRegularizationNet",
+  endingCpGross: "endingCpGross",
+  precariousnessGross: "precariousnessGross",
+  legalRuptureAmount: "legalRuptureAmount",
+  otherTerminationGross: "otherTerminationGross",
   officialGross: "officialGross",
   officialCmg: "officialCmg",
   officialPajemploiDebit: "officialPajemploiDebit",
@@ -325,15 +345,32 @@ function defaultMonthly(period) {
     specificHours: "no",
     over24Hours: "no",
     disabilityCare: "no",
+    franceTravailPaidHours: "",
+    unpaidHours: 0,
+    unpaidDays: 0,
+    absenceType: "",
+    absenceStartDate: "",
+    absenceEndDate: "",
+    bonusType: "",
+    bonusGross: 0,
+    bonusPaymentDate: "",
     isEndContract: "no",
     endDate: lastDay(period),
     endReason: state.contract.contractType === "CDD" ? "cdd" : "employer",
+    terminationNotificationDate: "",
+    noticeStatus: "performed",
+    noticeStartDate: "",
+    noticeEndDate: lastDay(period),
     precariousnessNet: "",
     endingCpNet: "",
     endingCpDays: "",
     noticeCompensationNet: 0,
     ruptureIndemnityNet: "",
     endingRegularizationNet: 0,
+    endingCpGross: "",
+    precariousnessGross: "",
+    legalRuptureAmount: "",
+    otherTerminationGross: 0,
     officialGross: "",
     officialCmg: "",
     officialPajemploiDebit: "",
@@ -461,6 +498,7 @@ function calculateMonthlyEndSuggestions() {
   setValue("endingCpNetMonthly", result.suggestedCpCompensation);
   setValue("endingCpDays", result.leaveBalance.remainingDays);
   setValue("ruptureIndemnityNet", result.suggestedRuptureIndemnity);
+  if (!$("legalRuptureAmount").value) setValue("legalRuptureAmount", result.suggestedRuptureIndemnity);
   $("endAutoInfo").innerHTML =
     `<strong>Proposition automatique :</strong> ${result.leaveBalance.remainingDays.toLocaleString("fr-FR")} jours de congés à solder, ` +
     `${money(result.suggestedCpCompensation)} de congés ` +
@@ -671,6 +709,10 @@ function renderHistory() {
     fragment.querySelector(".history-numbers").textContent =
       `${record.results.declared.days} j mensualisés • ${record.input.actualDays || 0} j réels • ` +
       `${record.results.declared.normalHours} h normales • ${money(record.results.totalToPay)}` +
+      (number(record.input.unpaidDays) || number(record.input.unpaidHours)
+        ? ` • non payé ${number(record.input.unpaidDays)} j / ${number(record.input.unpaidHours)} h`
+        : "") +
+      (number(record.input.bonusGross) ? ` • prime brute ${money(record.input.bonusGross)}` : "") +
       (record.results.ending?.active ? ` • fin de contrat ${new Date(`${record.results.ending.endDate}T12:00:00`).toLocaleDateString("fr-FR")}` : "") +
       ` • coût famille ${money(record.results.cmg?.officialPajemploiDebit || record.results.cmg?.estimatedOutOfPocket)}`;
     fragment.querySelector(".history-edit").addEventListener("click", () => {
@@ -761,6 +803,10 @@ function printEmployerDossier() {
   saveContract(false);
   const records = Object.entries(officialDeclarations()).sort(([a], [b]) => a.localeCompare(b));
   const basis = contractBasis(state.contract);
+  const dateFr = value => value
+    ? new Date(`${value}T12:00:00`).toLocaleDateString("fr-FR")
+    : "—";
+  const text = value => escapeHtml(value || "—");
   const endReasonLabels = {
     employer: "Retrait de l’enfant",
     employee: "Démission",
@@ -772,6 +818,31 @@ function printEmployerDossier() {
     cdd: "Fin de CDD",
     agreement: "Autre motif",
     other: "Autre motif"
+  };
+  const noticeLabels = {
+    performed: "Effectué et payé",
+    partial: "Partiellement effectué",
+    not_performed_paid: "Non effectué mais payé",
+    not_performed_unpaid: "Non effectué et non payé à la demande de la salariée",
+    not_applicable: "Pas de préavis applicable"
+  };
+  const nationalityLabels = {
+    france: "Française",
+    ue: "Union européenne",
+    eee: "EEE hors UE",
+    hors_ue_eee: "Hors UE / EEE"
+  };
+  const absenceLabels = {
+    maladie: "Arrêt maladie",
+    maternite: "Congé maternité",
+    paternite: "Congé paternité / accueil de l’enfant",
+    adoption: "Congé d’adoption",
+    accident_travail: "Accident du travail",
+    accident_trajet: "Accident de trajet",
+    activite_partielle: "Activité partielle",
+    conge_sans_solde: "Congé sans solde / convenance personnelle",
+    conge_parental: "Congé parental",
+    autre: "Autre événement"
   };
   const rows = records.map(([period, record]) => `
     <tr>
@@ -788,6 +859,36 @@ function printEmployerDossier() {
       <td>${money(record.results.cmg?.officialCmg || record.results.cmg?.estimatedCmg)}</td>
       <td>${money(record.results.cmg?.officialPajemploiDebit || record.results.cmg?.estimatedOutOfPocket)}</td>
     </tr>`).join("");
+  const franceTravailRows = records.map(([period, record]) => {
+    const calculatedHours = number(record.results.declared.normalHours) +
+      number(record.results.declared.complementaryHours) +
+      number(record.results.declared.majorHours);
+    const hours = number(record.input.franceTravailPaidHours) || calculatedHours;
+    const officialGross = number(record.input.officialGross);
+    const gross = officialGross || number(record.results.salary.grossForHistory);
+    const unpaid = [
+      number(record.input.unpaidDays) ? `${number(record.input.unpaidDays).toLocaleString("fr-FR")} j` : "",
+      number(record.input.unpaidHours) ? `${number(record.input.unpaidHours).toLocaleString("fr-FR")} h` : ""
+    ].filter(Boolean).join(" / ") || "0";
+    return `<tr>
+      <td>${escapeHtml(monthLabel(period))}</td>
+      <td>${dateFr(record.input.paymentDate)}</td>
+      <td>${hours.toLocaleString("fr-FR")} h</td>
+      <td>${unpaid}</td>
+      <td>${money(gross)}${officialGross ? "" : " <em>(estimé)</em>"}</td>
+      <td>${number(record.input.bonusGross) ? `${money(record.input.bonusGross)}<br>${text(record.input.bonusType)}` : "—"}</td>
+      <td>${text(record.input.monthNote)}</td>
+    </tr>`;
+  }).join("");
+  const absenceRows = records
+    .filter(([, record]) => record.input.absenceType || number(record.input.unpaidDays) || number(record.input.unpaidHours))
+    .map(([period, record]) => `<tr>
+      <td>${escapeHtml(monthLabel(period))}</td>
+      <td>${text(absenceLabels[record.input.absenceType] || record.input.absenceType)}</td>
+      <td>${dateFr(record.input.absenceStartDate)}</td>
+      <td>${dateFr(record.input.absenceEndDate)}</td>
+      <td>${number(record.input.unpaidDays).toLocaleString("fr-FR")} j / ${number(record.input.unpaidHours).toLocaleString("fr-FR")} h</td>
+    </tr>`).join("");
   const endRows = records
     .filter(([, record]) => record.results.ending?.active)
     .map(([period, record]) => {
@@ -796,14 +897,43 @@ function printEmployerDossier() {
         <td>${escapeHtml(monthLabel(period))}</td>
         <td>${escapeHtml(new Date(`${ending.endDate}T12:00:00`).toLocaleDateString("fr-FR"))}</td>
         <td>${escapeHtml(endReasonLabels[ending.reason] || ending.reason || "—")}</td>
+        <td>${record.input.endingCpGross ? money(record.input.endingCpGross) : "À compléter"}</td>
+        <td>${record.input.precariousnessGross ? money(record.input.precariousnessGross) : "—"}</td>
+        <td>${record.input.legalRuptureAmount ? money(record.input.legalRuptureAmount) : "À compléter"}</td>
+        <td>${money(record.input.otherTerminationGross)}</td>
         <td>${ending.cpDays.toLocaleString("fr-FR")} j • ${money(ending.cpCompensationNet)}</td>
-        <td>${money(ending.noticeCompensationNet)}</td>
-        <td>${money(ending.precariousnessNet)}</td>
         <td>${money(ending.ruptureIndemnityNet)}</td>
-        <td>${money(ending.regularizationNet)}</td>
         <td>${money(ending.total)}</td>
       </tr>`;
     }).join("");
+  const ruptureSalaryRows = records
+    .filter(([, record]) => record.results.ending?.active)
+    .map(([period, record]) => {
+      const calculatedHours = number(record.results.declared.normalHours) +
+        number(record.results.declared.complementaryHours) +
+        number(record.results.declared.majorHours);
+      const hours = number(record.input.franceTravailPaidHours) || calculatedHours;
+      const gross = number(record.input.officialGross) || number(record.results.salary.grossForHistory);
+      const unpaid = `${number(record.input.unpaidDays).toLocaleString("fr-FR")} j / ${number(record.input.unpaidHours).toLocaleString("fr-FR")} h`;
+      return `<tr>
+        <td>${escapeHtml(monthLabel(period))}</td>
+        <td>${dateFr(record.input.paymentDate)}</td>
+        <td>${hours.toLocaleString("fr-FR")} h</td>
+        <td>${unpaid}</td>
+        <td>${money(gross)}${number(record.input.officialGross) ? "" : " <em>(estimé)</em>"}</td>
+      </tr>`;
+    }).join("");
+  const finalEntry = [...records].reverse().find(([, record]) => record.results.ending?.active);
+  const finalRecord = finalEntry?.[1];
+  const finalEnding = finalRecord?.results.ending;
+  const missingFranceData = [
+    !state.admin.employerPhone && "téléphone employeur",
+    !state.admin.employerBirthDate && "date de naissance employeur",
+    !state.admin.employeeBirthDate && "date de naissance salariée",
+    !state.admin.employeeNumber && "numéro de Sécurité sociale",
+    records.some(([, record]) => !number(record.input.officialGross)) && "salaires bruts officiels de certains mois",
+    finalRecord && !number(finalRecord.input.endingCpGross) && "indemnité compensatrice de congés payés brute"
+  ].filter(Boolean);
   const totals = records.reduce((sum, [, record]) => ({
     paid: sum.paid + number(record.results.totalToPay),
     cmg: sum.cmg + number(record.results.cmg?.officialCmg || record.results.cmg?.estimatedCmg),
@@ -820,16 +950,18 @@ function printEmployerDossier() {
       .muted{color:#667085}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.box{border:1px solid #d0d5dd;border-radius:8px;padding:12px}
       table{width:100%;border-collapse:collapse;font-size:9px}th,td{border:1px solid #d0d5dd;padding:6px;text-align:right}th{background:#eef2ff}
       th:first-child,td:first-child{text-align:left}.totals{display:flex;gap:20px;justify-content:flex-end;margin-top:12px;font-size:13px}
+      .alert{margin:12px 0;padding:10px;border:1px solid #f59e0b;background:#fffbeb;color:#92400e}.page-break{break-before:page}
+      .ft-title{color:#075985;border-color:#0ea5e9}.label{color:#667085;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
       footer{margin-top:20px;color:#667085;font-size:9px}
     </style></head><body>
     <h1>Dossier employeur — ${escapeHtml(state.admin.childName || "Enfant gardé")}</h1>
     <p class="muted">Récapitulatif contractuel et registre des déclarations confirmées sur Pajemploi • édité le ${new Date().toLocaleDateString("fr-FR")}</p>
     <h2>Parties et contrat</h2>
     <div class="grid">
-      <div class="box"><strong>Employeur</strong><br>${escapeHtml(state.admin.employerName)}<br>${escapeHtml(state.admin.employerAddress).replace(/\n/g,"<br>")}<br>N° Pajemploi : ${escapeHtml(state.admin.employerPajemploi)}</div>
-      <div class="box"><strong>Assistante maternelle</strong><br>${escapeHtml(state.admin.employeeName)}<br>${escapeHtml(state.admin.employeeAddress).replace(/\n/g,"<br>")}<br>N° agrément : ${escapeHtml(state.admin.approvalNumber)}</div>
-      <div class="box"><strong>Enfant</strong><br>${escapeHtml(state.admin.childName)} • né(e) le ${escapeHtml(state.admin.childBirthDate || "—")}</div>
-      <div class="box"><strong>Contrat ${escapeHtml(state.contract.contractType)}</strong><br>Début : ${escapeHtml(state.contract.startDate || "—")}<br>${state.contract.weeksPerYear} semaines • ${state.contract.daysPerWeek} jours/semaine • ${state.contract.normalHoursPerWeek} h normales + ${state.contract.majorHoursPerWeek} h majorées/semaine</div>
+      <div class="box"><strong>Employeur principal</strong><br>${text(state.admin.employerName)}<br>${text(state.admin.employerAddress).replace(/\n/g,"<br>")}<br>Tél. : ${text(state.admin.employerPhone)} • né(e) le ${dateFr(state.admin.employerBirthDate)}<br>N° Pajemploi : ${text(state.admin.employerPajemploi)}</div>
+      <div class="box"><strong>Second employeur</strong><br>${text(state.admin.secondaryEmployerName)}<br>${text(state.admin.secondaryEmployerAddress).replace(/\n/g,"<br>")}<br>Tél. : ${text(state.admin.secondaryEmployerPhone)} • né(e) le ${dateFr(state.admin.secondaryEmployerBirthDate)}</div>
+      <div class="box"><strong>Assistante maternelle</strong><br>${text(state.admin.employeeName)}<br>${text(state.admin.employeeAddress).replace(/\n/g,"<br>")}<br>Née le ${dateFr(state.admin.employeeBirthDate)} à ${text(state.admin.employeeBirthPlace)} (${text(state.admin.employeeBirthDepartment)})<br>NIR : ${text(state.admin.employeeNumber)} • nationalité : ${text(nationalityLabels[state.admin.employeeNationality])}<br>Retraite : ${text(state.admin.employeeRetirementFund)} • agrément : ${text(state.admin.approvalNumber)}</div>
+      <div class="box"><strong>Enfant et contrat</strong><br>${text(state.admin.childName)} • né(e) le ${dateFr(state.admin.childBirthDate)}<br>${text(state.contract.contractType)} n° ${text(state.contract.contractNumber || "00000")} • début ${dateFr(state.contract.startDate)}<br>${text(state.contract.lastJobTitle)}<br>${state.contract.weeksPerYear} semaines • ${state.contract.daysPerWeek} jours/semaine • ${state.contract.normalHoursPerWeek} h normales + ${state.contract.majorHoursPerWeek} h majorées/semaine</div>
     </div>
     <h2>Mensualisation de référence</h2>
     <p>${basis.declaredDays} jours d’activité • ${basis.declaredNormalHours} heures normales • ${basis.declaredContractMajorHours} heures majorées • taux net normal ${money(state.contract.netHourlyRate)}</p>
@@ -837,10 +969,28 @@ function printEmployerDossier() {
     <table><thead><tr><th>Mois</th><th>Jours mens.</th><th>Jours réels</th><th>H normales</th><th>H compl.</th><th>H maj.</th><th>CP jours</th><th>Salaire net</th><th>Indemnités</th><th>Payé salariée</th><th>CMG estimé</th><th>Coût famille</th></tr></thead>
     <tbody>${rows || '<tr><td colspan="12">Aucune déclaration confirmée.</td></tr>'}</tbody></table>
     <div class="totals"><strong>Total versé : ${money(totals.paid)}</strong><strong>CMG estimé : ${money(totals.cmg)}</strong><strong>Coût famille estimé : ${money(totals.family)}</strong></div>
-    ${endRows ? `<h2>Fin de contrat déclarée</h2>
-    <table><thead><tr><th>Mois</th><th>Date</th><th>Motif</th><th>Congés soldés</th><th>Préavis</th><th>Précarité</th><th>Rupture</th><th>Régularisation</th><th>Total fin</th></tr></thead>
+
+    <h2 class="ft-title page-break">Aide à la saisie de l’attestation France Travail</h2>
+    <p class="muted">Mémo préparatoire constitué uniquement à partir des déclarations confirmées. L’attestation officielle doit être générée et transmise depuis Pajemploi, puis remise à la salariée.</p>
+    ${missingFranceData.length ? `<div class="alert"><strong>Informations à compléter avant la saisie :</strong> ${missingFranceData.map(text).join(", ")}.</div>` : ""}
+    <div class="grid">
+      <div class="box"><span class="label">Emploi</span><br><strong>${text(state.contract.lastJobTitle)}</strong><br>Période : du ${dateFr(state.contract.startDate)} au ${dateFr(finalEnding?.endDate)}<br>N° contrat : ${text(state.contract.contractNumber || "00000")}<br>Horaire hebdomadaire : ${(number(state.contract.normalHoursPerWeek) + number(state.contract.majorHoursPerWeek)).toLocaleString("fr-FR")} h</div>
+      <div class="box"><span class="label">Rupture et préavis</span><br>Motif : <strong>${text(endReasonLabels[finalEnding?.reason])}</strong><br>Notification : ${dateFr(finalRecord?.input.terminationNotificationDate)}<br>Préavis : ${text(noticeLabels[finalRecord?.input.noticeStatus])}<br>Du ${dateFr(finalRecord?.input.noticeStartDate)} au ${dateFr(finalRecord?.input.noticeEndDate)}</div>
+    </div>
+    <h2 class="ft-title">Salaires des mois civils complets</h2>
+    <p class="muted">France Travail demande les 25 derniers mois, ou 37 mois selon l’âge à la rupture. Les montants marqués « estimé » doivent être remplacés par le brut du bulletin Pajemploi.</p>
+    <table><thead><tr><th>Période de paie</th><th>Date de paiement</th><th>Temps travaillé/payé</th><th>Temps non payé</th><th>Salaire brut</th><th>Prime brute</th><th>Observations</th></tr></thead>
+    <tbody>${franceTravailRows || '<tr><td colspan="7">Aucune déclaration Pajemploi confirmée.</td></tr>'}</tbody></table>
+    <h2 class="ft-title">Arrêts, absences et suspensions</h2>
+    <table><thead><tr><th>Mois</th><th>Nature</th><th>Début</th><th>Fin</th><th>Temps non payé</th></tr></thead>
+    <tbody>${absenceRows || '<tr><td colspan="5">Aucun arrêt, absence ou suspension enregistré.</td></tr>'}</tbody></table>
+    ${endRows ? `<h2 class="ft-title">Sommes versées à l’occasion de la rupture</h2>
+    <table><thead><tr><th>Période de paie</th><th>Date de paiement</th><th>Temps travaillé/payé</th><th>Temps non payé</th><th>Salaire brut soumis aux contributions</th></tr></thead>
+    <tbody>${ruptureSalaryRows}</tbody></table>
+    <h2 class="ft-title">Indemnités de fin de contrat</h2>
+    <table><thead><tr><th>Mois</th><th>Date de fin</th><th>Motif</th><th>CP bruts</th><th>Précarité brute</th><th>Indemnité légale</th><th>Autres indemnités</th><th>CP nets / jours</th><th>Rupture nette</th><th>Total net</th></tr></thead>
     <tbody>${endRows}</tbody></table>` : ""}
-    <footer>Ce document est un registre employeur généré à partir des validations saisies dans NounouCalc. Il ne remplace ni le bulletin de salaire ni les attestations officielles produits par l’Urssaf service Pajemploi.</footer>
+    <footer>Ce document est un registre employeur et un mémo de saisie généré par NounouCalc. Il ne remplace ni les bulletins Pajemploi, ni le solde de tout compte, ni l’attestation officielle France Travail transmise via Pajemploi.</footer>
     <script>window.onload=()=>window.print()<\/script></body></html>`);
   report.document.close();
 }
@@ -865,6 +1015,19 @@ function exportData() {
   URL.revokeObjectURL(link.href);
 }
 
+function recalculateImportedState(importedState) {
+  for (const [period, bucket] of Object.entries(importedState.declarations || {})) {
+    for (const record of bucket?.simulations || []) {
+      record.input = { ...record.input, period };
+      record.results = calculateDeclaration(importedState.contract, record.input);
+      record.results.cmg = calculateCmg(importedState.cmgProfile || defaultState().cmgProfile, record.results);
+      record.results.cmg.officialCmg = number(record.input.officialCmg);
+      record.results.cmg.officialPajemploiDebit = number(record.input.officialPajemploiDebit);
+    }
+  }
+  return importedState;
+}
+
 async function importData(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -875,7 +1038,9 @@ async function importData(event) {
       throw new Error("Format non reconnu");
     }
     if (!confirm("Remplacer les données locales par cette sauvegarde ?")) return;
-    state = importedState.version === DATA_VERSION ? importedState : upgradeV2(importedState);
+    state = recalculateImportedState(
+      importedState.version === DATA_VERSION ? importedState : upgradeV2(importedState)
+    );
     saveState();
     applyTheme(state.preferences?.theme || "auto");
     fillContract();

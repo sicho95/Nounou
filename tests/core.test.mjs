@@ -5,6 +5,7 @@ import {
   calculateDeclaration,
   calculateEnd,
   contractBasis,
+  defaultState,
   globalLeaveBalance,
   leaveSummary,
   referencePeriod,
@@ -24,6 +25,15 @@ const contract = {
   maintenanceRate: 3.8,
   mealRate: 4
 };
+
+test("prévoit les identifiants nécessaires au mémo France Travail", () => {
+  const state = defaultState();
+
+  assert.equal(state.contract.contractNumber, "00000");
+  assert.equal(state.contract.lastJobTitle, "Assistante maternelle agréée");
+  assert.equal(state.admin.employeeRetirementFund, "Régime unifié AGIRC-ARRCO");
+  assert.equal(state.admin.employeeNationality, "france");
+});
 
 test("calcule les bases mensualisées et leurs arrondis déclaratifs", () => {
   const basis = contractBasis(contract);

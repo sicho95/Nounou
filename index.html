@@ -143,6 +143,55 @@
         </div>
       </details>
 
+      <details class="card collapsible">
+        <summary>France Travail : absences et primes</summary>
+        <div class="collapsible-body">
+          <p class="hint">Le temps payé exact vient du bulletin. Les autres champs sont à compléter seulement en cas d’absence, d’arrêt/suspension ou de prime distincte.</p>
+          <div class="form-grid two compact-grid">
+            <label>Temps de travail payé
+              <input id="franceTravailPaidHours" type="number" min="0" step="0.1">
+              <small>Heures exactes du bulletin pour l’attestation France Travail.</small>
+            </label>
+            <label>Heures non intégralement payées
+              <input id="unpaidHours" type="number" min="0" step="0.25" value="0">
+            </label>
+            <label>Jours non intégralement payés
+              <input id="unpaidDays" type="number" min="0" step="0.5" value="0">
+            </label>
+            <label>Nature de l’absence ou suspension
+              <select id="absenceType">
+                <option value="">Aucune</option>
+                <option value="maladie">Arrêt maladie</option>
+                <option value="maternite">Congé maternité</option>
+                <option value="paternite">Congé paternité / accueil de l’enfant</option>
+                <option value="adoption">Congé d’adoption</option>
+                <option value="accident_travail">Accident du travail</option>
+                <option value="accident_trajet">Accident de trajet</option>
+                <option value="activite_partielle">Activité partielle</option>
+                <option value="conge_sans_solde">Congé sans solde / convenance personnelle</option>
+                <option value="conge_parental">Congé parental</option>
+                <option value="autre">Autre événement</option>
+              </select>
+            </label>
+            <label>Début de l’absence
+              <input id="absenceStartDate" type="date">
+            </label>
+            <label>Fin de l’absence
+              <input id="absenceEndDate" type="date">
+            </label>
+            <label>Nature de la prime
+              <input id="bonusType" type="text" placeholder="Prime exceptionnelle…">
+            </label>
+            <label>Prime brute soumise à contributions
+              <input id="bonusGross" type="number" min="0" step="0.01" value="0">
+            </label>
+            <label>Date de paiement de la prime
+              <input id="bonusPaymentDate" type="date">
+            </label>
+          </div>
+        </div>
+      </details>
+
       <details class="card collapsible" id="monthlyEndCard">
         <summary>Fin de contrat ce mois</summary>
         <div class="collapsible-body">
@@ -164,6 +213,24 @@
                   <option value="cdd">Fin de CDD</option>
                   <option value="agreement">Autre motif</option>
                 </select>
+              </label>
+              <label>Date de notification de la rupture
+                <input id="terminationNotificationDate" type="date">
+              </label>
+              <label>Situation du préavis
+                <select id="noticeStatus">
+                  <option value="performed">Préavis effectué et payé</option>
+                  <option value="partial">Préavis partiellement effectué</option>
+                  <option value="not_performed_paid">Non effectué mais payé</option>
+                  <option value="not_performed_unpaid">Non effectué et non payé à la demande de la salariée</option>
+                  <option value="not_applicable">Pas de préavis applicable</option>
+                </select>
+              </label>
+              <label>Premier jour du préavis
+                <input id="noticeStartDate" type="date">
+              </label>
+              <label>Dernier jour du préavis
+                <input id="noticeEndDate" type="date">
               </label>
             </div>
             <div id="endAutoInfo" class="auto-info"></div>
@@ -189,6 +256,24 @@
                 <input id="endingRegularizationNet" type="number" min="0" step="0.01" value="0">
               </label>
             </div>
+            <details class="nested-details">
+              <summary>Montants bruts pour France Travail</summary>
+              <div class="form-grid two compact-grid collapsible-body">
+                <label>Indemnité compensatrice de congés payés brute
+                  <input id="endingCpGross" type="number" min="0" step="0.01">
+                  <small>À recopier depuis le bulletin ou le solde Pajemploi.</small>
+                </label>
+                <label>Prime de précarité brute
+                  <input id="precariousnessGross" type="number" min="0" step="0.01">
+                </label>
+                <label>Indemnité légale ou conventionnelle de rupture
+                  <input id="legalRuptureAmount" type="number" min="0" step="0.01">
+                </label>
+                <label>Autres indemnités de rupture hors congés et préavis
+                  <input id="otherTerminationGross" type="number" min="0" step="0.01" value="0">
+                </label>
+              </div>
+            </details>
             <p class="hint">Les propositions utilisent le contrat et les mois confirmés. Elles restent modifiables avant la simulation et doivent être comparées au module officiel Pajemploi.</p>
           </div>
         </div>
@@ -349,6 +434,13 @@
               <option value="CDD">CDD</option>
             </select>
           </label>
+          <label>Numéro de contrat France Travail
+            <input id="contractNumber" type="text" value="00000">
+            <small>France Travail demande « 00000 » si aucun numéro n’existe.</small>
+          </label>
+          <label>Dernier emploi tenu
+            <input id="lastJobTitle" type="text" value="Assistante maternelle agréée">
+          </label>
           <label>Semaines programmées sur 12 mois
             <input id="weeksPerYear" type="number" min="1" max="52" step="1" value="46">
             <small>52 semaines, ou 46 semaines et moins.</small>
@@ -431,8 +523,26 @@
           <label>N° Pajemploi employeur
             <input id="employerPajemploi" type="text">
           </label>
+          <label>Téléphone employeur
+            <input id="employerPhone" type="tel">
+          </label>
+          <label>Date de naissance employeur
+            <input id="employerBirthDate" type="date">
+          </label>
           <label>Adresse employeur
             <textarea id="employerAddress" rows="2"></textarea>
+          </label>
+          <label>Second employeur <span class="optional">(facultatif)</span>
+            <input id="secondaryEmployerName" type="text" placeholder="Prénom Nom">
+          </label>
+          <label>Téléphone second employeur
+            <input id="secondaryEmployerPhone" type="tel">
+          </label>
+          <label>Date de naissance second employeur
+            <input id="secondaryEmployerBirthDate" type="date">
+          </label>
+          <label>Adresse second employeur
+            <textarea id="secondaryEmployerAddress" rows="2"></textarea>
           </label>
           <label>Assistante maternelle
             <input id="employeeName" type="text" placeholder="Prénom Nom">
@@ -442,6 +552,26 @@
           </label>
           <label>Adresse assistante maternelle
             <textarea id="employeeAddress" rows="2"></textarea>
+          </label>
+          <label>Date de naissance assistante maternelle
+            <input id="employeeBirthDate" type="date">
+          </label>
+          <label>Lieu de naissance
+            <input id="employeeBirthPlace" type="text">
+          </label>
+          <label>Département de naissance
+            <input id="employeeBirthDepartment" type="text" placeholder="95">
+          </label>
+          <label>Nationalité
+            <select id="employeeNationality">
+              <option value="france">Française</option>
+              <option value="ue">Union européenne</option>
+              <option value="eee">EEE hors UE</option>
+              <option value="hors_ue_eee">Hors UE / EEE</option>
+            </select>
+          </label>
+          <label>Caisse de retraite complémentaire
+            <input id="employeeRetirementFund" type="text" value="Régime unifié AGIRC-ARRCO">
           </label>
           <label>N° d’agrément
             <input id="approvalNumber" type="text">

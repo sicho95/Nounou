@@ -17,7 +17,8 @@ NounouCalc est un assistant local pour préparer les déclarations mensuelles Pa
 - protège les données à chaud (brouillon de mise à jour), à tiède (stockage immédiat) et à froid (IndexedDB avec 30 instantanés) ;
 - prépare directement dans la déclaration du dernier mois la fin de contrat, les congés restant à payer, le préavis, la précarité, la rupture et la régularisation ;
 - estime le CMG selon le barème 2026 et mémorise ensuite les montants réellement calculés par Pajemploi+ ;
-- imprime un dossier employeur professionnel, tandis que le bulletin de salaire officiel reste produit par Pajemploi.
+- imprime un dossier employeur professionnel avec un mémo complet pour la saisie de l’attestation France Travail : identités, emploi, préavis, salaires bruts, temps non payé, absences, primes et sommes de rupture ;
+- signale clairement les salaires bruts encore estimés ou les informations France Travail à compléter, tandis que les documents officiels restent produits par Pajemploi et France Travail ;
 - s’installe comme PWA, fonctionne hors ligne et vérifie automatiquement les nouveaux builds ;
 - propose un thème iOS sobre automatique, clair ou sombre.
 
@@ -34,9 +35,13 @@ L’application ne transmet aucune donnée. Elle fonctionne comme un site statiq
 7. Après validation, recopier si possible le salaire brut, le CMG et le prélèvement Pajemploi+ officiels.
 8. Exporter régulièrement la sauvegarde JSON depuis l’onglet **Données**.
 
+Pour préparer une fin de contrat, renseigner aussi dans **Contrat** les coordonnées, dates de naissance, numéro de Sécurité sociale, nationalité et caisse de retraite. Pour chaque mois concerné, compléter les heures/jours non payés, l’éventuel arrêt ou suspension, la prime brute et le salaire brut officiel. Le dossier imprimé dans **Historique** rassemble alors les rubriques nécessaires à la saisie France Travail.
+
 ## Sauvegarde, restauration et mises à jour
 
 Le stockage courant et IndexedDB contiennent le même état complet. IndexedDB conserve en plus les 30 derniers instantanés afin de mieux résister à une écriture interrompue. L’export JSON est portable et inclut tous les paramètres, l’administratif, la configuration CMG, les préférences, toutes les simulations et toutes les déclarations validées.
+
+L’import recalcule systématiquement les résultats de chaque simulation à partir des données du contrat et des saisies mensuelles. Un jeu d’essai privé peut ainsi conserver séparément ses résultats attendus dans une section `referenceChecks`, sans maquiller les calculs ni publier les données personnelles de la famille.
 
 Le service worker utilise une stratégie réseau prioritaire avec repli hors ligne. L’application compare le dernier commit de `main` au démarrage, au retour au premier plan et toutes les cinq minutes ; `build.json` sert de repli si l’API publique GitHub est temporairement indisponible. Si le code a changé, le brouillon courant est placé temporairement en mémoire de session, la PWA se recharge, puis le brouillon est restauré. Il n’est donc pas nécessaire de modifier le numéro de version officiel pour diffuser une correction.
 
@@ -52,6 +57,6 @@ node --test
 
 ## Limites importantes
 
-NounouCalc est un outil d’aide et non un service de paie. Les absences, l’adaptation, les congés, la régularisation et la rupture peuvent dépendre de faits que le logiciel ne peut pas deviner. Le récapitulatif de l’Urssaf fait foi avant validation.
+NounouCalc est un outil d’aide et non un service de paie. Les absences, l’adaptation, les congés, la régularisation et la rupture peuvent dépendre de faits que le logiciel ne peut pas deviner. Le récapitulatif de l’Urssaf fait foi avant validation. Le dossier employeur n’est pas l’attestation France Travail officielle : celle-ci doit être générée et transmise via le service Pajemploi-France Travail, puis remise à la salariée.
 
 Les règles et choix de calcul sont documentés dans [docs/REGLES_CALCUL.md](docs/REGLES_CALCUL.md).
