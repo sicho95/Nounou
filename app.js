@@ -775,9 +775,18 @@ function restorePendingDraft() {
 }
 
 async function fetchBuildId() {
-  const response = await fetch(`build.json?ts=${Date.now()}`, { cache: "no-store" });
-  if (!response.ok) throw new Error(`build.json ${response.status}`);
-  return (await response.json()).build;
+  try {
+    const response = await fetch("https://api.github.com/repos/sicho95/Nounou/commits/main", {
+      cache: "no-store",
+      headers: { Accept: "application/vnd.github+json" }
+    });
+    if (response.ok) return (await response.json()).sha;
+  } catch (error) {
+    console.debug("Commit distant indisponible, repli sur build.json", error);
+  }
+  const fallback = await fetch(`build.json?ts=${Date.now()}`, { cache: "no-store" });
+  if (!fallback.ok) throw new Error(`build.json ${fallback.status}`);
+  return (await fallback.json()).build;
 }
 
 async function registerPwa() {

@@ -36,7 +36,7 @@ L’application ne transmet aucune donnée. Elle fonctionne comme un site statiq
 
 Le stockage courant et IndexedDB contiennent le même état complet. IndexedDB conserve en plus les 30 derniers instantanés afin de mieux résister à une écriture interrompue. L’export JSON est portable et inclut tous les paramètres, l’administratif, la configuration CMG, les préférences, toutes les simulations et toutes les déclarations validées.
 
-Le service worker utilise une stratégie réseau prioritaire avec repli hors ligne. À chaque publication sur `main`, le workflow GitHub Pages écrit l’identifiant exact du commit dans `build.json`. L’application le contrôle au retour au premier plan et toutes les cinq minutes. Si le code a changé, le brouillon courant est placé temporairement en mémoire de session, la PWA se recharge, puis le brouillon est restauré. Il n’est donc pas nécessaire de modifier le numéro de version officiel pour diffuser une correction.
+Le service worker utilise une stratégie réseau prioritaire avec repli hors ligne. L’application compare le dernier commit de `main` au démarrage, au retour au premier plan et toutes les cinq minutes ; `build.json` sert de repli si l’API publique GitHub est temporairement indisponible. Si le code a changé, le brouillon courant est placé temporairement en mémoire de session, la PWA se recharge, puis le brouillon est restauré. Il n’est donc pas nécessaire de modifier le numéro de version officiel pour diffuser une correction.
 
 L’interface est conçue en priorité pour iPhone 13/15 Pro et iPad. Le format ordinateur est secondaire.
 

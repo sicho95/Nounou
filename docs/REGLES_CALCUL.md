@@ -152,4 +152,4 @@ Il est écrit simultanément :
 2. dans IndexedDB comme copie à froid, avec au maximum 30 instantanés ;
 3. dans un fichier JSON complet à la demande de l’utilisateur.
 
-Le cache du service worker ne contient que le code de l’application, jamais la base métier. Avant une actualisation automatique du code, le formulaire en cours est conservé dans la mémoire de session puis restauré après rechargement.
+Le cache du service worker ne contient que le code de l’application, jamais la base métier. Le dernier commit de la branche `main` est utilisé comme identifiant technique de mise à jour, avec `build.json` en solution de repli. Avant une actualisation automatique du code, le formulaire en cours est conservé dans la mémoire de session puis restauré après rechargement.
