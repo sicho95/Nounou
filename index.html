@@ -829,6 +829,12 @@
     </article>
   </template>
 
+  <!-- Compatibilité d'une transition PWA : l'ancien script peut vivre un chargement de plus avec le nouveau HTML. -->
+  <div class="hidden" aria-hidden="true">
+    <button id="recalculateEndButton" type="button" tabindex="-1"></button>
+    <button id="calculateEndButton" type="button" tabindex="-1"></button>
+  </div>
+
   <script type="module" src="app.js"></script>
 </body>
 </html>
