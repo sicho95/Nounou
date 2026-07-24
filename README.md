@@ -7,6 +7,7 @@ NounouCalc est un assistant local pour préparer les déclarations mensuelles Pa
 - calcule les jours d’activité mensualisés à partir du contrat ;
 - sépare les heures normales mensualisées, complémentaires et majorées ;
 - affiche la base exacte utilisée pour le salaire et la valeur entière à saisir ;
+- explique dans une aide plein écran les règles d’arrondi et de calcul, avec un lien officiel sous chaque règle ;
 - détaille le salaire net, les indemnités d’entretien et les repas ;
 - enregistre chaque déclaration mensuelle dans le navigateur ;
 - conserve plusieurs simulations par mois et distingue clairement la simulation de la déclaration confirmée sur Pajemploi ;

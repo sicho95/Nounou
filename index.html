@@ -428,6 +428,10 @@
           <p class="eyebrow">Paramètres durables</p>
           <h2>Contrat et données administratives</h2>
         </div>
+        <button id="calculationInfoButton" class="calculation-info-button" type="button" aria-haspopup="dialog" aria-controls="calculationInfoModal">
+          <span aria-hidden="true">i</span>
+          <strong>Règles de calcul</strong>
+        </button>
       </div>
 
       <div class="card">
@@ -698,6 +702,126 @@
       </div>
     </section>
   </main>
+
+  <div id="calculationInfoModal" class="info-modal" role="dialog" aria-modal="true" aria-labelledby="calculationInfoTitle" aria-hidden="true" hidden>
+    <div class="info-modal-sheet">
+      <header class="info-modal-header">
+        <div>
+          <p class="eyebrow">Mémo officiel</p>
+          <h2 id="calculationInfoTitle">Comprendre les calculs</h2>
+        </div>
+        <button id="closeCalculationInfo" class="info-modal-close" type="button" aria-label="Fermer les règles de calcul">×</button>
+      </header>
+
+      <div class="info-modal-content">
+        <p class="info-modal-intro">
+          NounouCalc conserve les valeurs exactes pour calculer le salaire, puis applique seulement à la fin les arrondis nécessaires aux cases entières de Pajemploi.
+        </p>
+
+        <article class="calculation-rule">
+          <span class="calculation-rule-number">1</span>
+          <div>
+            <h3>Mensualisation du contrat</h3>
+            <p>Sur 52 semaines : base hebdomadaire × 52 ÷ 12. Sur 46 semaines ou moins : base hebdomadaire × semaines programmées ÷ 12. Les décimales restent utilisées pour calculer le salaire.</p>
+            <div class="formula-chip">Exemple : 5 jours × 46 ÷ 12 = 19,1667 jours mensualisés</div>
+            <a href="https://www.urssaf.fr/accueil/particulier/particulier-employeur/embaucher-un-salarie/remunerer-salarie-domicile.html" target="_blank" rel="noopener noreferrer">Voir les exemples officiels Urssaf <span aria-hidden="true">↗</span></a>
+          </div>
+        </article>
+
+        <article class="calculation-rule">
+          <span class="calculation-rule-number">2</span>
+          <div>
+            <h3>Jours d’activité à déclarer</h3>
+            <p>Pour une garde mensualisée, Pajemploi demande les jours mensualisés, pas les jours réellement gardés. NounouCalc arrondit le résultat à l’entier supérieur pour la case Pajemploi.</p>
+            <div class="formula-chip">19,1667 jours → 20 jours à déclarer</div>
+            <p class="rule-note">Les jours réellement gardés restent séparés : ils servent notamment aux indemnités d’entretien et de repas.</p>
+            <a href="https://www.urssaf.fr/accueil/services/services-particuliers/service-pajemploi/declarer-service-pajemploi.html" target="_blank" rel="noopener noreferrer">Lire « Comment déclarer avec Pajemploi ? » <span aria-hidden="true">↗</span></a>
+          </div>
+        </article>
+
+        <article class="calculation-rule">
+          <span class="calculation-rule-number">3</span>
+          <div>
+            <h3>Heures normales mensualisées</h3>
+            <p>Les heures exactes servent au salaire. Pour la case entière Pajemploi, les heures mensualisées sont arrondies à l’entier le plus proche.</p>
+            <div class="formula-chip">40 h × 46 ÷ 12 = 153,3333 h → 153 h à déclarer</div>
+            <a href="https://www.urssaf.fr/accueil/particulier/particulier-employeur/embaucher-un-salarie/remunerer-salarie-domicile.html" target="_blank" rel="noopener noreferrer">Voir les formules Urssaf <span aria-hidden="true">↗</span></a>
+          </div>
+        </article>
+
+        <article class="calculation-rule">
+          <span class="calculation-rule-number">4</span>
+          <div>
+            <h3>Salaire net mensuel</h3>
+            <p>Le salaire est calculé avec les heures mensuelles exactes, avant l’arrondi déclaratif. Les heures complémentaires et les heures majorées sont ajoutées séparément avec leur taux applicable.</p>
+            <div class="formula-chip">Salaire = heures exactes × taux net + majorations − déductions</div>
+            <a href="https://www.urssaf.fr/accueil/services/services-particuliers/service-pajemploi/declarer-service-pajemploi.html" target="_blank" rel="noopener noreferrer">Consulter le guide de déclaration Urssaf <span aria-hidden="true">↗</span></a>
+          </div>
+        </article>
+
+        <article class="calculation-rule">
+          <span class="calculation-rule-number">5</span>
+          <div>
+            <h3>Heures complémentaires et majorées</h3>
+            <p>Les heures faites au-delà du contrat jusqu’à 45 heures hebdomadaires sont complémentaires. Celles effectuées au-delà de 45 heures sont majorées. Pajemploi possède une case distincte pour chacune.</p>
+            <a href="https://www.urssaf.fr/accueil/services/services-particuliers/service-pajemploi/declarer-service-pajemploi.html" target="_blank" rel="noopener noreferrer">Voir les champs Pajemploi officiels <span aria-hidden="true">↗</span></a>
+          </div>
+        </article>
+
+        <article class="calculation-rule">
+          <span class="calculation-rule-number">6</span>
+          <div>
+            <h3>Indemnité d’entretien</h3>
+            <p>Elle est calculée avec les heures réellement gardées. NounouCalc retient le montant le plus favorable entre le minimum légal proratisé, le plancher journalier de 2,65 € et le montant contractuel proratisé.</p>
+            <div class="formula-chip">Minimum 9 h : 3,83 € de janvier à mai 2026, puis 3,92 € depuis juin 2026</div>
+            <a href="https://www.urssaf.fr/accueil/outils-documentation/taux-baremes/taux-baremes-assistant-maternel.html" target="_blank" rel="noopener noreferrer">Consulter le barème Urssaf à jour <span aria-hidden="true">↗</span></a>
+          </div>
+        </article>
+
+        <article class="calculation-rule">
+          <span class="calculation-rule-number">7</span>
+          <div>
+            <h3>Repas et autres indemnités</h3>
+            <p>Il n’existe pas de tarif national unique pour les repas. L’application multiplie le nombre réel de repas complets ou partiels par les tarifs inscrits au contrat. Aucun repas n’est compté lorsqu’il est fourni par le parent.</p>
+            <a href="https://www.urssaf.fr/files/live/sites/urssaffr/files/outils-documentation/formulaires-modeles/Contrat-CDI-Pajemploi-Ama.pdf" target="_blank" rel="noopener noreferrer">Voir le modèle officiel de contrat Pajemploi <span aria-hidden="true">↗</span></a>
+          </div>
+        </article>
+
+        <article class="calculation-rule">
+          <span class="calculation-rule-number">8</span>
+          <div>
+            <h3>Congés payés</h3>
+            <p>Une période complète ouvre 2,5 jours ouvrables par mois effectif. En année incomplète, l’acquisition est calculée par équivalents de quatre semaines. À la clôture de la période, les jours acquis sont arrondis au jour supérieur.</p>
+            <p>Le montant payé est le plus favorable entre le maintien de salaire et le dixième de la rémunération brute de référence.</p>
+            <a href="https://www.urssaf.fr/accueil/particulier/particulier-employeur/gerer-les-absences/gestion-conges-payes.html" target="_blank" rel="noopener noreferrer">Lire les règles de congés Urssaf <span aria-hidden="true">↗</span></a>
+          </div>
+        </article>
+
+        <article class="calculation-rule">
+          <span class="calculation-rule-number">9</span>
+          <div>
+            <h3>Absence non rémunérée</h3>
+            <p>La déduction ne se fait pas avec une simple valeur journalière moyenne. Elle compare les heures d’absence aux heures qui auraient réellement dû être effectuées dans le mois.</p>
+            <div class="formula-chip">Salaire mensualisé − (salaire mensualisé × heures d’absence ÷ heures prévues dans le mois)</div>
+            <a href="https://www.urssaf.fr/accueil/particulier/particulier-employeur/embaucher-un-salarie/contrat-travail-salarie-domicile.html" target="_blank" rel="noopener noreferrer">Voir la formule officielle Urssaf <span aria-hidden="true">↗</span></a>
+          </div>
+        </article>
+
+        <article class="calculation-rule">
+          <span class="calculation-rule-number">10</span>
+          <div>
+            <h3>Fin de contrat</h3>
+            <p>Les congés restants sont recalculés jusqu’à la date de fin. Sur 46 semaines ou moins, la régularisation ne peut être qu’à l’avantage de la salariée. À partir de neuf mois, l’indemnité de rupture d’un CDI correspond à 1/80 des salaires bruts, hors entretien et repas.</p>
+            <a href="https://www.service-public.gouv.fr/particuliers/vosdroits/F16842" target="_blank" rel="noopener noreferrer">Consulter la fiche officielle Service-Public <span aria-hidden="true">↗</span></a>
+          </div>
+        </article>
+
+        <div class="info-modal-warning">
+          Ces résumés expliquent les calculs de NounouCalc. En cas de situation particulière ou d’écart, le récapitulatif et le bulletin produits par l’Urssaf service Pajemploi restent la référence.
+        </div>
+      </div>
+    </div>
+  </div>
 
   <footer class="shell">
     <p>NounouCalc V2 • calculs transparents • PWA hors ligne • aucune donnée personnelle envoyée à un serveur</p>

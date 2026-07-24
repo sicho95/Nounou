@@ -269,6 +269,25 @@ function cycleTheme() {
   applyTheme(THEME_ORDER[(THEME_ORDER.indexOf(current) + 1) % THEME_ORDER.length], true);
 }
 
+let calculationInfoReturnFocus = null;
+
+function openCalculationInfo() {
+  const modal = $("calculationInfoModal");
+  calculationInfoReturnFocus = document.activeElement;
+  modal.hidden = false;
+  modal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("info-modal-open");
+  $("closeCalculationInfo").focus();
+}
+
+function closeCalculationInfo() {
+  const modal = $("calculationInfoModal");
+  modal.hidden = true;
+  modal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("info-modal-open");
+  calculationInfoReturnFocus?.focus?.();
+}
+
 function currentMonth() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -1270,6 +1289,14 @@ $("exportButton").addEventListener("click", exportData);
 $("importFile").addEventListener("change", importData);
 $("resetButton").addEventListener("click", resetData);
 $("themeToggle").addEventListener("click", cycleTheme);
+$("calculationInfoButton").addEventListener("click", openCalculationInfo);
+$("closeCalculationInfo").addEventListener("click", closeCalculationInfo);
+$("calculationInfoModal").addEventListener("click", event => {
+  if (event.target === $("calculationInfoModal")) closeCalculationInfo();
+});
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !$("calculationInfoModal").hidden) closeCalculationInfo();
+});
 matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
   if ((state.preferences?.theme || "auto") === "auto") applyTheme("auto");
 });
