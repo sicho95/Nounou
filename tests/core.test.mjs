@@ -638,15 +638,26 @@ test("migre automatiquement l’ancienne sauvegarde NounouTop sans ressaisie", (
   assert.equal(legacy.declarations["2026-07"].simulations[0].input.endingRegularizationNet, 546.99);
   assert.equal(legacy.declarations["2026-07"].simulations[0].input.endValuesConfirmed, "yes");
   assert.equal(legacy.declarations["2026-07"].simulations[0].input.officialContributionExemption, 13.15);
+  assert.equal(legacy.declarations["2026-07"].simulations[0].input.officialWithholdingTax, 33.48);
+  assert.equal(legacy.declarations["2026-07"].simulations[0].input.officialCmg, 717);
+  assert.equal(legacy.declarations["2026-07"].simulations[0].input.officialPajemploiDebit, 1357);
 });
 
-test("rapproche les 2 060,85 € calculés avec les 2 049,55 € dus par NounouTop", () => {
+test("retrouve le décompte officiel Pajemploi+ de juillet 2026", () => {
   const settlement = calculatePajemploiSettlement(2060.85, {
     officialContributionExemption: 13.15,
-    officialWithholdingTax: 24.18,
-    officialEmployeeRecovery: 0.27
+    officialWithholdingTax: 33.48,
+    officialCmg: 717,
+    officialTotalContributions: 1437.21,
+    officialCoveredContributions: 1424.06,
+    officialPajemploiDebit: 1357
   });
 
-  assert.equal(settlement.pajemploiTransfer, 2049.82);
-  assert.equal(settlement.finalDue, 2049.55);
+  assert.equal(settlement.totalEmploymentCost, 3498.06);
+  assert.equal(settlement.pajemploiTransfer, 2040.52);
+  assert.equal(settlement.finalDue, 2040.52);
+  assert.equal(settlement.salaryCharge, 1323.52);
+  assert.equal(settlement.contributionCharge, 0);
+  assert.equal(settlement.totalCmg, 2141.06);
+  assert.equal(settlement.remainingCharge, 1357);
 });

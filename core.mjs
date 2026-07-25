@@ -1,4 +1,4 @@
-export const DATA_VERSION = 7;
+export const DATA_VERSION = 8;
 
 export function number(value, fallback = 0) {
   const parsed = Number.parseFloat(value);
@@ -53,9 +53,13 @@ export function alignKnownNounouTopReference(targetState) {
         legalRuptureAmount: 172.38,
         officialGross: 1782.71,
         franceTravailPaidHours: 301.7,
+        officialCmg: 717,
+        officialPajemploiDebit: 1357,
         officialContributionExemption: 13.15,
-        officialWithholdingTax: 24.18,
-        officialEmployeeRecovery: 0.27,
+        officialWithholdingTax: 33.48,
+        officialTotalContributions: 1437.21,
+        officialCoveredContributions: 1424.06,
+        officialEmployeeRecovery: 0,
         endValuesConfirmed: "yes"
       });
     }
@@ -74,21 +78,43 @@ export function calculatePajemploiSettlement(totalToPay, input = {}) {
   const declaredElementsTotal = round(Math.max(0, number(totalToPay)));
   const contributionExemption = round(Math.max(0, number(input.officialContributionExemption)));
   const withholdingTax = round(Math.max(0, number(input.officialWithholdingTax)));
+  const salaryCmg = round(Math.max(0, number(input.officialCmg)));
+  const totalContributions = round(Math.max(0, number(input.officialTotalContributions)));
+  const coveredContributions = round(Math.max(0, number(input.officialCoveredContributions)));
   const employeeRecovery = round(Math.max(0, number(input.officialEmployeeRecovery)));
-  const configured = contributionExemption > 0 || withholdingTax > 0 || employeeRecovery > 0;
+  const officialRemainingCharge = Math.max(0, number(input.officialPajemploiDebit));
+  const configured = contributionExemption > 0 || withholdingTax > 0 || salaryCmg > 0 ||
+    totalContributions > 0 || coveredContributions > 0 || employeeRecovery > 0;
   const pajemploiTransfer = round(Math.max(
     0,
     declaredElementsTotal + contributionExemption - withholdingTax
   ));
   const finalDue = round(Math.max(0, pajemploiTransfer - employeeRecovery));
+  const salaryCharge = round(Math.max(0, pajemploiTransfer - salaryCmg));
+  const contributionCharge = round(Math.max(
+    0,
+    totalContributions - contributionExemption - coveredContributions
+  ));
+  const calculatedRemainingCharge = round(salaryCharge + contributionCharge + withholdingTax);
+  const remainingCharge = round(officialRemainingCharge || calculatedRemainingCharge);
   return {
     configured,
     declaredElementsTotal,
     contributionExemption,
     withholdingTax,
+    salaryCmg,
+    totalContributions,
+    coveredContributions,
+    totalCmg: round(salaryCmg + coveredContributions),
+    totalEmploymentCost: round(declaredElementsTotal + totalContributions),
     employeeRecovery,
     pajemploiTransfer,
-    finalDue
+    finalDue,
+    salaryCharge,
+    contributionCharge,
+    calculatedRemainingCharge,
+    officialRemainingCharge: round(officialRemainingCharge),
+    remainingCharge
   };
 }
 

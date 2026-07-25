@@ -149,7 +149,7 @@ Dans le jeu de contrôle NounouTop de juillet 2026, le salaire net du mois est f
 
 L’indemnité compensatrice de congés payés de 317,44 € reste dans sa case dédiée et s’ajoute au total versé ; elle ne doit pas être confondue avec le salaire net mensuel de 1 392,63 €.
 
-Le total des éléments saisis n’est pas forcément le montant finalement viré par Pajemploi+. Dans le jeu de contrôle de juillet, les éléments totalisent 2 060,85 €. Pajemploi ajoute 13,15 € d’exonération puis retire 24,18 € de prélèvement à la source, soit un virement de 2 049,82 €. Après la correction de 0,27 € signalée par NounouTop, le montant finalement dû est de 2 049,55 €.
+Le total des éléments saisis n’est pas forcément le montant finalement viré par Pajemploi+. La déclaration officielle de juillet confirme 2 060,85 € de rémunération saisie, 1 437,21 € de cotisations et donc 3 498,06 € de coût total de l’emploi. Pajemploi ajoute 13,15 € d’exonération puis retire 33,48 € de prélèvement à la source : la salariée reçoit 2 040,52 €. Le CMG comprend 717 € affectés au salaire et 1 424,06 € de cotisations prises en charge, soit 2 141,06 € au total. Le reste à charge officiel de la famille est de 1 357 €.
 
 La fin de contrat est intégrée à la déclaration du dernier mois. Les champs proposés correspondent à la rubrique Pajemploi : date et motif de fin, prime de précarité, indemnité compensatrice de congés payés et jours soldés, indemnité compensatrice de préavis, indemnité de rupture et régularisation de salaire.
 

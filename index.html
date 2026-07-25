@@ -340,9 +340,15 @@
           <label>Prélèvement à la source retiré
             <input id="officialWithholdingTax" type="number" min="0" step="0.01">
           </label>
+          <label>Montant total des cotisations
+            <input id="officialTotalContributions" type="number" min="0" step="0.01">
+          </label>
+          <label>Cotisations prises en charge par la CAF/MSA
+            <input id="officialCoveredContributions" type="number" min="0" step="0.01">
+          </label>
           <label>Somme à récupérer auprès de la salariée
             <input id="officialEmployeeRecovery" type="number" min="0" step="0.01">
-            <small>Par exemple la correction de 0,27 € indiquée par NounouTop.</small>
+            <small>Uniquement si Pajemploi demande réellement une régularisation séparée.</small>
           </label>
         </div>
         <label>Note du mois <span class="optional">(facultatif)</span>
@@ -432,7 +438,7 @@
         <div id="outPajemploiSettlementCard" class="card breakdown hidden">
           <h3>Rapprochement avec le virement Pajemploi+</h3>
           <div id="outPajemploiSettlement"></div>
-          <p class="hint">Pajemploi ajoute l’exonération calculée puis retire le prélèvement à la source. Le récapitulatif officiel reste la référence.</p>
+          <p class="hint">Le virement à la salariée, le CMG total et votre reste à charge sont des montants différents. Le récapitulatif officiel Pajemploi reste la référence.</p>
         </div>
 
         <div class="card breakdown">

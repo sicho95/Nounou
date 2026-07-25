@@ -98,6 +98,8 @@ const monthlyFields = {
   officialPajemploiDebit: "officialPajemploiDebit",
   officialContributionExemption: "officialContributionExemption",
   officialWithholdingTax: "officialWithholdingTax",
+  officialTotalContributions: "officialTotalContributions",
+  officialCoveredContributions: "officialCoveredContributions",
   officialEmployeeRecovery: "officialEmployeeRecovery",
   monthNote: "monthNote"
 };
@@ -504,6 +506,8 @@ function defaultMonthly(period) {
     officialPajemploiDebit: "",
     officialContributionExemption: "",
     officialWithholdingTax: "",
+    officialTotalContributions: "",
+    officialCoveredContributions: "",
     officialEmployeeRecovery: "",
     monthNote: ""
   };
@@ -562,6 +566,8 @@ function newSimulation() {
     officialPajemploiDebit: "",
     officialContributionExemption: "",
     officialWithholdingTax: "",
+    officialTotalContributions: "",
+    officialCoveredContributions: "",
     officialEmployeeRecovery: "",
     monthNote: source.monthNote ? `${source.monthNote} — variante` : ""
   } : defaultMonthly(period);
@@ -809,14 +815,22 @@ function renderResults(record) {
   $("outPajemploiSettlementCard").classList.toggle("hidden", !settlement?.configured);
   if (settlement?.configured) {
     $("outPajemploiSettlement").innerHTML = [
+      row("Coût total de l’emploi", settlement.totalEmploymentCost),
       row("Total des éléments calculés", settlement.declaredElementsTotal),
+      row("Cotisations totales", settlement.totalContributions),
       row("Exonération ajoutée par Pajemploi", settlement.contributionExemption),
       row("Prélèvement à la source retiré", -settlement.withholdingTax),
       row("Virement Pajemploi+ à la salariée", settlement.pajemploiTransfer),
+      row("CMG affecté au salaire", -settlement.salaryCmg),
+      row("Cotisations prises en charge", -settlement.coveredContributions),
+      row("CMG total", settlement.totalCmg),
+      row("Reste à charge au titre du salaire", settlement.salaryCharge),
+      row("Reste à charge au titre des cotisations", settlement.contributionCharge),
       settlement.employeeRecovery
         ? row("Somme à récupérer auprès de la salariée", -settlement.employeeRecovery)
         : "",
-      row("Montant final dû", settlement.finalDue)
+      row("Montant final reçu par la salariée", settlement.finalDue),
+      row("Reste total à votre charge", settlement.remainingCharge)
     ].join("");
   }
 
@@ -1284,7 +1298,7 @@ async function importData(event) {
   try {
     const parsed = JSON.parse(await file.text());
     const importedState = parsed?.format === "nounoucalc-complete-backup" ? parsed.state : parsed;
-    if (![2, 3, 4, 5, 6, DATA_VERSION].includes(importedState?.version) || !importedState.contract || !importedState.declarations) {
+    if (![2, 3, 4, 5, 6, 7, DATA_VERSION].includes(importedState?.version) || !importedState.contract || !importedState.declarations) {
       throw new Error("Format non reconnu");
     }
     if (!confirm("Remplacer les données locales par cette sauvegarde ?")) return;
