@@ -6,6 +6,7 @@ import {
   calculateDeclaration,
   calculateEnd,
   calculateMaintenanceAllowance,
+  calculatePajemploiSettlement,
   cmgProfileAt,
   contractBasis,
   defaultState,
@@ -636,4 +637,16 @@ test("migre automatiquement l’ancienne sauvegarde NounouTop sans ressaisie", (
   assert.equal(legacy.declarations["2026-05"].simulations[0].input.actualCareHours, 160);
   assert.equal(legacy.declarations["2026-07"].simulations[0].input.endingRegularizationNet, 546.99);
   assert.equal(legacy.declarations["2026-07"].simulations[0].input.endValuesConfirmed, "yes");
+  assert.equal(legacy.declarations["2026-07"].simulations[0].input.officialContributionExemption, 13.15);
+});
+
+test("rapproche les 2 060,85 € calculés avec les 2 049,55 € dus par NounouTop", () => {
+  const settlement = calculatePajemploiSettlement(2060.85, {
+    officialContributionExemption: 13.15,
+    officialWithholdingTax: 24.18,
+    officialEmployeeRecovery: 0.27
+  });
+
+  assert.equal(settlement.pajemploiTransfer, 2049.82);
+  assert.equal(settlement.finalDue, 2049.55);
 });

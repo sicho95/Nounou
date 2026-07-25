@@ -149,6 +149,8 @@ Dans le jeu de contrôle NounouTop de juillet 2026, le salaire net du mois est f
 
 L’indemnité compensatrice de congés payés de 317,44 € reste dans sa case dédiée et s’ajoute au total versé ; elle ne doit pas être confondue avec le salaire net mensuel de 1 392,63 €.
 
+Le total des éléments saisis n’est pas forcément le montant finalement viré par Pajemploi+. Dans le jeu de contrôle de juillet, les éléments totalisent 2 060,85 €. Pajemploi ajoute 13,15 € d’exonération puis retire 24,18 € de prélèvement à la source, soit un virement de 2 049,82 €. Après la correction de 0,27 € signalée par NounouTop, le montant finalement dû est de 2 049,55 €.
+
 La fin de contrat est intégrée à la déclaration du dernier mois. Les champs proposés correspondent à la rubrique Pajemploi : date et motif de fin, prime de précarité, indemnité compensatrice de congés payés et jours soldés, indemnité compensatrice de préavis, indemnité de rupture et régularisation de salaire.
 
 La régularisation de salaire est ajoutée au salaire net déclaré du dernier mois. L’indemnité compensatrice de congés, le préavis, la précarité et l’indemnité de rupture restent dans leurs cases dédiées de la rubrique « Indemnités de fin de contrat » ; elles sont ajoutées au total à verser sans gonfler la case « salaire net du mois ».

@@ -320,7 +320,7 @@
       <details class="card collapsible">
         <summary>Montants officiels après saisie Pajemploi</summary>
         <div class="collapsible-body">
-        <p class="hint">Ces trois montants sont facultatifs et se recopient après la déclaration. Ils ne servent pas à confirmer une simulation.</p>
+        <p class="hint">Ces montants sont facultatifs et se recopient après la déclaration. Ils permettent notamment de rapprocher le total calculé du virement Pajemploi+ réellement reçu.</p>
         <label>Salaire brut officiel du mois <span class="optional">(facultatif)</span>
           <input id="officialGross" type="number" min="0" step="0.01" placeholder="À recopier après la déclaration">
           <small>Montant du bulletin Pajemploi. Il est utilisé pour toute la durée du contrat, mois de fin compris.</small>
@@ -331,6 +331,18 @@
           </label>
           <label>Montant réellement prélevé par Pajemploi+ <span class="optional">(après validation)</span>
             <input id="officialPajemploiDebit" type="number" min="0" step="0.01">
+          </label>
+        </div>
+        <div class="form-grid two compact-grid">
+          <label>Exonération ajoutée par Pajemploi
+            <input id="officialContributionExemption" type="number" min="0" step="0.01">
+          </label>
+          <label>Prélèvement à la source retiré
+            <input id="officialWithholdingTax" type="number" min="0" step="0.01">
+          </label>
+          <label>Somme à récupérer auprès de la salariée
+            <input id="officialEmployeeRecovery" type="number" min="0" step="0.01">
+            <small>Par exemple la correction de 0,27 € indiquée par NounouTop.</small>
           </label>
         </div>
         <label>Note du mois <span class="optional">(facultatif)</span>
@@ -414,7 +426,13 @@
           <div><span>Indemnité de repas</span><strong id="outMeals">—</strong></div>
           <div><span>Indemnités kilométriques</span><strong id="outKilometers">—</strong></div>
           <div><span>Acompte déjà versé</span><strong id="outAdvance">—</strong></div>
-          <div class="grand-total"><span>Total à verser</span><strong id="outTotal">—</strong></div>
+          <div class="grand-total"><span>Total des éléments avant calculs Pajemploi</span><strong id="outTotal">—</strong></div>
+        </div>
+
+        <div id="outPajemploiSettlementCard" class="card breakdown hidden">
+          <h3>Rapprochement avec le virement Pajemploi+</h3>
+          <div id="outPajemploiSettlement"></div>
+          <p class="hint">Pajemploi ajoute l’exonération calculée puis retire le prélèvement à la source. Le récapitulatif officiel reste la référence.</p>
         </div>
 
         <div class="card breakdown">

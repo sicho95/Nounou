@@ -96,6 +96,9 @@ const monthlyFields = {
   officialGross: "officialGross",
   officialCmg: "officialCmg",
   officialPajemploiDebit: "officialPajemploiDebit",
+  officialContributionExemption: "officialContributionExemption",
+  officialWithholdingTax: "officialWithholdingTax",
+  officialEmployeeRecovery: "officialEmployeeRecovery",
   monthNote: "monthNote"
 };
 
@@ -499,6 +502,9 @@ function defaultMonthly(period) {
     officialGross: "",
     officialCmg: "",
     officialPajemploiDebit: "",
+    officialContributionExemption: "",
+    officialWithholdingTax: "",
+    officialEmployeeRecovery: "",
     monthNote: ""
   };
 }
@@ -554,6 +560,9 @@ function newSimulation() {
     officialGross: "",
     officialCmg: "",
     officialPajemploiDebit: "",
+    officialContributionExemption: "",
+    officialWithholdingTax: "",
+    officialEmployeeRecovery: "",
     monthNote: source.monthNote ? `${source.monthNote} — variante` : ""
   } : defaultMonthly(period);
   fillCpReferenceOptions(period, input.cpReferenceKey);
@@ -796,6 +805,20 @@ function renderResults(record) {
   $("outKilometers").textContent = money(expenses.kilometers);
   $("outAdvance").textContent = `− ${money(results.advancePaid)}`;
   $("outTotal").textContent = money(results.totalToPay);
+  const settlement = results.pajemploiSettlement;
+  $("outPajemploiSettlementCard").classList.toggle("hidden", !settlement?.configured);
+  if (settlement?.configured) {
+    $("outPajemploiSettlement").innerHTML = [
+      row("Total des éléments calculés", settlement.declaredElementsTotal),
+      row("Exonération ajoutée par Pajemploi", settlement.contributionExemption),
+      row("Prélèvement à la source retiré", -settlement.withholdingTax),
+      row("Virement Pajemploi+ à la salariée", settlement.pajemploiTransfer),
+      settlement.employeeRecovery
+        ? row("Somme à récupérer auprès de la salariée", -settlement.employeeRecovery)
+        : "",
+      row("Montant final dû", settlement.finalDue)
+    ].join("");
+  }
 
   const rate = money(state.contract.netHourlyRate);
   const majorRate = money(number(state.contract.netHourlyRate) * (1 + number(state.contract.majorMarkup) / 100));
@@ -1261,7 +1284,7 @@ async function importData(event) {
   try {
     const parsed = JSON.parse(await file.text());
     const importedState = parsed?.format === "nounoucalc-complete-backup" ? parsed.state : parsed;
-    if (![2, 3, 4, 5, DATA_VERSION].includes(importedState?.version) || !importedState.contract || !importedState.declarations) {
+    if (![2, 3, 4, 5, 6, DATA_VERSION].includes(importedState?.version) || !importedState.contract || !importedState.declarations) {
       throw new Error("Format non reconnu");
     }
     if (!confirm("Remplacer les données locales par cette sauvegarde ?")) return;

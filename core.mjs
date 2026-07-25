@@ -1,4 +1,4 @@
-export const DATA_VERSION = 6;
+export const DATA_VERSION = 7;
 
 export function number(value, fallback = 0) {
   const parsed = Number.parseFloat(value);
@@ -53,6 +53,9 @@ export function alignKnownNounouTopReference(targetState) {
         legalRuptureAmount: 172.38,
         officialGross: 1782.71,
         franceTravailPaidHours: 301.7,
+        officialContributionExemption: 13.15,
+        officialWithholdingTax: 24.18,
+        officialEmployeeRecovery: 0.27,
         endValuesConfirmed: "yes"
       });
     }
@@ -65,6 +68,28 @@ export function money(value) {
     style: "currency",
     currency: "EUR"
   }).format(number(value));
+}
+
+export function calculatePajemploiSettlement(totalToPay, input = {}) {
+  const declaredElementsTotal = round(Math.max(0, number(totalToPay)));
+  const contributionExemption = round(Math.max(0, number(input.officialContributionExemption)));
+  const withholdingTax = round(Math.max(0, number(input.officialWithholdingTax)));
+  const employeeRecovery = round(Math.max(0, number(input.officialEmployeeRecovery)));
+  const configured = contributionExemption > 0 || withholdingTax > 0 || employeeRecovery > 0;
+  const pajemploiTransfer = round(Math.max(
+    0,
+    declaredElementsTotal + contributionExemption - withholdingTax
+  ));
+  const finalDue = round(Math.max(0, pajemploiTransfer - employeeRecovery));
+  return {
+    configured,
+    declaredElementsTotal,
+    contributionExemption,
+    withholdingTax,
+    employeeRecovery,
+    pajemploiTransfer,
+    finalDue
+  };
 }
 
 export function estimatedGrossHourlyRate(netRate) {
@@ -307,6 +332,10 @@ export function calculateDeclaration(contract, input) {
   const declaredDaysWithRegularization = input.isEndContract === "yes"
     ? Math.min(31, Math.ceil(basis.daysExact + regularizationDays - 1e-9))
     : basis.declaredDays;
+  const totalToPay = round(Math.max(
+    0,
+    netSalary + separateEndingSalaryElements + maintenance + meals + kilometers + ruptureIndemnityNet - advancePaid
+  ));
 
   return {
     basis,
@@ -345,10 +374,8 @@ export function calculateDeclaration(contract, input) {
       maintenanceCalculation
     },
     advancePaid: round(advancePaid),
-    totalToPay: round(Math.max(
-      0,
-      netSalary + separateEndingSalaryElements + maintenance + meals + kilometers + ruptureIndemnityNet - advancePaid
-    )),
+    totalToPay,
+    pajemploiSettlement: calculatePajemploiSettlement(totalToPay, input),
     paidLeaveConversion: {
       hours: round(cpHours, 4),
       normalHoursWithPaidLeave: round(normalHoursWithPaidLeave, 4),
