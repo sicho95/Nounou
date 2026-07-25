@@ -9,6 +9,7 @@ import {
   cmgProfileAt,
   contractBasis,
   defaultState,
+  alignKnownNounouTopReference,
   estimatedGrossHourlyRate,
   globalLeaveBalance,
   leaveSummary,
@@ -606,4 +607,33 @@ test("retrouve exactement les trois déclarations NounouTop de mai, juin et juil
       assert.equal(result.totalToPay, target.totalToPay);
     }
   }
+});
+
+test("migre automatiquement l’ancienne sauvegarde NounouTop sans ressaisie", () => {
+  const legacy = {
+    contract: {
+      startDate: "2025-09-08",
+      netHourlyRate: "4.6",
+      weeksPerYear: "46"
+    },
+    declarations: {
+      "2026-05": {
+        simulations: [{ input: { actualDays: "16" } }]
+      },
+      "2026-07": {
+        simulations: [{
+          input: {
+            actualDays: "16",
+            monthNote: "Cible Nounou-Top : ancienne sauvegarde"
+          }
+        }]
+      }
+    }
+  };
+
+  assert.equal(alignKnownNounouTopReference(legacy), true);
+  assert.equal(legacy.contract.monthlyBaseNetSalary, 845.64);
+  assert.equal(legacy.declarations["2026-05"].simulations[0].input.actualCareHours, 160);
+  assert.equal(legacy.declarations["2026-07"].simulations[0].input.endingRegularizationNet, 546.99);
+  assert.equal(legacy.declarations["2026-07"].simulations[0].input.endValuesConfirmed, "yes");
 });
