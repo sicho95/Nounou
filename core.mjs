@@ -1,4 +1,4 @@
-export const DATA_VERSION = 8;
+export const DATA_VERSION = 9;
 
 export function number(value, fallback = 0) {
   const parsed = Number.parseFloat(value);
@@ -10,63 +10,6 @@ export function round(value, digits = 2) {
   return Math.round((number(value) + Number.EPSILON) * factor) / factor;
 }
 
-export function alignKnownNounouTopReference(targetState) {
-  const julyRecords = targetState.declarations?.["2026-07"]?.simulations || [];
-  const isKnownReference = targetState.contract?.startDate === "2025-09-08" &&
-    number(targetState.contract?.netHourlyRate) === 4.6 &&
-    julyRecords.some(record => String(record.input?.monthNote || "").includes("Cible Nounou-Top"));
-  if (!isKnownReference) return false;
-
-  Object.assign(targetState.contract, {
-    weeksPerYear: 44,
-    daysPerWeek: 5,
-    normalHoursPerWeek: 45,
-    majorHoursPerWeek: 5,
-    grossHourlyRate: 5.8884,
-    majorMarkup: 10,
-    monthlyBaseNetSalary: 845.64,
-    maintenanceRate: 4,
-    mealRate: 7,
-    partialMealRate: 4
-  });
-
-  for (const [period, bucket] of Object.entries(targetState.declarations || {})) {
-    for (const record of bucket?.simulations || []) {
-      if (!record.input) continue;
-      record.input.actualCareHours = period === "2026-07"
-        ? 159.18
-        : round(number(record.input.actualDays) * 10, 2);
-      if (period !== "2026-07") continue;
-      Object.assign(record.input, {
-        meals: 15,
-        partialMeals: 1,
-        isEndContract: "yes",
-        endDate: "2026-07-31",
-        endReason: "employer",
-        endingCpNet: 317.44,
-        endingCpDays: 3,
-        endingCpGross: 406.35,
-        endingRegularizationNet: 546.99,
-        endingRegularizationHours: 118.38,
-        endingRegularizationDays: 13.99,
-        ruptureIndemnityNet: 172.38,
-        legalRuptureAmount: 172.38,
-        officialGross: 1782.71,
-        franceTravailPaidHours: 301.7,
-        officialCmg: 717,
-        officialPajemploiDebit: 1357,
-        officialContributionExemption: 13.15,
-        officialWithholdingTax: 33.48,
-        officialTotalContributions: 1437.21,
-        officialCoveredContributions: 1424.06,
-        officialEmployeeRecovery: 0,
-        endValuesConfirmed: "yes"
-      });
-    }
-  }
-  return true;
-}
-
 export function money(value) {
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",
@@ -74,16 +17,27 @@ export function money(value) {
   }).format(number(value));
 }
 
-export function calculatePajemploiSettlement(totalToPay, input = {}) {
+export function calculatePajemploiSettlement(totalToPay, input = {}, estimates = {}) {
+  const hasValue = value => value !== "" && value != null && Number.isFinite(Number.parseFloat(value));
+  const selected = (officialValue, estimatedValue) =>
+    Math.max(0, number(hasValue(officialValue) ? officialValue : estimatedValue));
   const declaredElementsTotal = round(Math.max(0, number(totalToPay)));
-  const contributionExemption = round(Math.max(0, number(input.officialContributionExemption)));
-  const withholdingTax = round(Math.max(0, number(input.officialWithholdingTax)));
-  const salaryCmg = round(Math.max(0, number(input.officialCmg)));
-  const totalContributions = round(Math.max(0, number(input.officialTotalContributions)));
-  const coveredContributions = round(Math.max(0, number(input.officialCoveredContributions)));
+  const contributionExemption = round(selected(
+    input.officialContributionExemption,
+    estimates.contributionExemption
+  ));
+  const withholdingTax = round(selected(input.officialWithholdingTax, estimates.withholdingTax));
+  const salaryCmg = round(selected(input.officialCmg, estimates.salaryCmg));
+  const totalContributions = round(selected(input.officialTotalContributions, estimates.totalContributions));
+  const coveredContributions = round(selected(
+    input.officialCoveredContributions,
+    estimates.coveredContributions
+  ));
   const employeeRecovery = round(Math.max(0, number(input.officialEmployeeRecovery)));
-  const officialRemainingCharge = Math.max(0, number(input.officialPajemploiDebit));
-  const configured = contributionExemption > 0 || withholdingTax > 0 || salaryCmg > 0 ||
+  const officialRemainingCharge = hasValue(input.officialPajemploiDebit)
+    ? Math.max(0, number(input.officialPajemploiDebit))
+    : null;
+  const configured = Boolean(estimates.configured) || contributionExemption > 0 || withholdingTax > 0 || salaryCmg > 0 ||
     totalContributions > 0 || coveredContributions > 0 || employeeRecovery > 0;
   const pajemploiTransfer = round(Math.max(
     0,
@@ -96,7 +50,16 @@ export function calculatePajemploiSettlement(totalToPay, input = {}) {
     totalContributions - contributionExemption - coveredContributions
   ));
   const calculatedRemainingCharge = round(salaryCharge + contributionCharge + withholdingTax);
-  const remainingCharge = round(officialRemainingCharge || calculatedRemainingCharge);
+  const remainingCharge = round(officialRemainingCharge == null ? calculatedRemainingCharge : officialRemainingCharge);
+  const sources = {
+    contributionExemption: hasValue(input.officialContributionExemption) ? "official" : "estimated",
+    withholdingTax: hasValue(input.officialWithholdingTax) ? "official" : "estimated",
+    salaryCmg: hasValue(input.officialCmg) ? "official" : "estimated",
+    totalContributions: hasValue(input.officialTotalContributions) ? "official" : "estimated",
+    coveredContributions: hasValue(input.officialCoveredContributions) ? "official" : "estimated",
+    remainingCharge: officialRemainingCharge == null ? "estimated" : "official"
+  };
+  const officialCount = Object.values(sources).filter(source => source === "official").length;
   return {
     configured,
     declaredElementsTotal,
@@ -113,14 +76,56 @@ export function calculatePajemploiSettlement(totalToPay, input = {}) {
     salaryCharge,
     contributionCharge,
     calculatedRemainingCharge,
-    officialRemainingCharge: round(officialRemainingCharge),
-    remainingCharge
+    officialRemainingCharge: officialRemainingCharge == null ? null : round(officialRemainingCharge),
+    remainingCharge,
+    sources,
+    officialCount,
+    isOfficialComplete: officialCount === Object.keys(sources).length
   };
 }
 
 export function estimatedGrossHourlyRate(netRate) {
   const employeeContributionRatio2026 = 0.7811975;
   return round(Math.max(0, number(netRate)) / employeeContributionRatio2026, 4);
+}
+
+export function calculateContributionEstimate({
+  period,
+  subjectNet,
+  overtimeGross = 0,
+  withholdingTaxRate = 0
+} = {}) {
+  const net = Math.max(0, number(subjectNet));
+  const netToGrossRatio = (period || "") >= "2026-01" ? 0.7811975 : 0.7801;
+  const gross = netToGrossRatio > 0 ? net / netToGrossRatio : 0;
+  const employeeContributions = Math.max(0, gross - net);
+  const employerRate = (period || "") >= "2026-01" ? 0.43546 : 0.43426;
+  const occupationalHealth = Math.min(5, gross * 0.027);
+  const employerContributions = gross * employerRate + occupationalHealth;
+  const totalContributions = employeeContributions + employerContributions;
+  const overtimeExemption = Math.min(
+    employeeContributions,
+    Math.max(0, number(overtimeGross)) * 0.1131
+  );
+  const nonDeductibleCsgCrds = gross * 0.9825 * 0.029;
+  const overtimeTaxExemptNet = Math.max(0, number(overtimeGross)) * 0.93319;
+  const taxableNetEstimate = Math.max(0, net + nonDeductibleCsgCrds - overtimeTaxExemptNet);
+  const pasRate = Math.max(0, number(withholdingTaxRate));
+  const withholdingTaxEstimate = taxableNetEstimate * pasRate / 100;
+
+  return {
+    period: period || "",
+    subjectNet: round(net),
+    estimatedGross: round(gross),
+    employeeContributions: round(employeeContributions),
+    employerContributions: round(employerContributions),
+    totalContributions: round(totalContributions),
+    overtimeGross: round(Math.max(0, number(overtimeGross))),
+    overtimeExemption: round(overtimeExemption),
+    taxableNetEstimate: round(taxableNetEstimate),
+    withholdingTaxRate: round(pasRate, 3),
+    withholdingTaxEstimate: round(withholdingTaxEstimate)
+  };
 }
 
 export function maintenanceMinimumForPeriod(period) {
@@ -362,6 +367,12 @@ export function calculateDeclaration(contract, input) {
     0,
     netSalary + separateEndingSalaryElements + maintenance + meals + kilometers + ruptureIndemnityNet - advancePaid
   ));
+  const contributions = calculateContributionEstimate({
+    period: input.period,
+    subjectNet: netSalary + separateEndingSalaryElements,
+    overtimeGross: contractMajorGross + complementaryGross + extraMajorGross,
+    withholdingTaxRate: input.withholdingTaxRate
+  });
 
   return {
     basis,
@@ -401,6 +412,7 @@ export function calculateDeclaration(contract, input) {
     },
     advancePaid: round(advancePaid),
     totalToPay,
+    contributions,
     pajemploiSettlement: calculatePajemploiSettlement(totalToPay, input),
     paidLeaveConversion: {
       hours: round(cpHours, 4),
@@ -443,6 +455,13 @@ export function calculateDeclaration(contract, input) {
 
 const CMG_EFFORT_RATES = [0.000619, 0.000516, 0.000413, 0.000310, 0.000310, 0.000310, 0.000310, 0.000206];
 
+export function cmgParametersForPeriod(period) {
+  if ((period || "") >= "2026-04") {
+    return { resourceFloor: 821, resourceCap: 8500, hourlyCap: 8.09, referenceHourlyCost: 4.91 };
+  }
+  return { resourceFloor: 815, resourceCap: 8500, hourlyCap: 8, referenceHourlyCost: 4.85 };
+}
+
 export function cmgProfileAt(profiles, fallback, period) {
   const history = Array.isArray(profiles) ? profiles : [];
   const applicable = history
@@ -454,16 +473,21 @@ export function cmgProfileAt(profiles, fallback, period) {
 export function calculateCmg(cmgProfile, declaration) {
   const annualResources = Math.max(0, number(cmgProfile.annualResourcesN2));
   const configured = annualResources > 0;
+  const period = declaration.contributions?.period || "";
+  const parameters = cmgParametersForPeriod(period);
   const monthlyResources = configured
-    ? Math.min(8500, Math.max(814.02, annualResources / 12))
+    ? Math.min(parameters.resourceCap, Math.max(parameters.resourceFloor, Math.round(annualResources / 12)))
     : 0;
   const children = Math.max(1, Math.round(number(cmgProfile.dependentChildren, 1)));
   const aeehShift = cmgProfile.aeeh === "yes" ? 1 : 0;
   const rateIndex = Math.min(CMG_EFFORT_RATES.length - 1, children - 1 + aeehShift);
   const effortRate = CMG_EFFORT_RATES[rateIndex];
   const declared = declaration.declared || {};
-  const hours = Math.max(0,
-    number(declared.normalHours) + number(declared.complementaryHours) + number(declared.majorHours)
+  const exactPaidHours = Math.max(0, number(declaration.paidLeaveConversion?.franceTravailPaidHours));
+  const hours = exactPaidHours || Math.max(0,
+    number(declaration.paidLeaveConversion?.declaredNormalHoursExact, declared.normalHours) +
+    number(declaration.basis?.majorHoursExact, declared.majorHours) +
+    number(declared.complementaryHours)
   );
   const endingSalaryElements = number(declaration.ending?.precariousnessNet) +
     number(declaration.ending?.cpCompensationNet) +
@@ -475,8 +499,8 @@ export function calculateCmg(cmgProfile, declaration) {
     number(declaration.expenses?.meals)
   );
   const actualHourlyCost = hours > 0 ? eligibleCost / hours : 0;
-  const hourlyCap = 8.09;
-  const referenceHourlyCost = 4.91;
+  const hourlyCap = parameters.hourlyCap;
+  const referenceHourlyCost = parameters.referenceHourlyCost;
   const retainedHourlyCost = Math.min(actualHourlyCost, hourlyCap);
   const retainedCost = retainedHourlyCost * hours;
   const familyParticipation = hours * monthlyResources * effortRate *
@@ -484,11 +508,49 @@ export function calculateCmg(cmgProfile, declaration) {
   const estimatedCmg = configured
     ? Math.max(0, Math.min(retainedCost, retainedCost - familyParticipation))
     : null;
+  const coverageCoefficient = eligibleCost > 0
+    ? Math.min(1, retainedCost / eligibleCost)
+    : 0;
+  const estimatedCoveredContributions = Math.max(
+    0,
+    (
+      number(declaration.contributions?.totalContributions) -
+      number(declaration.contributions?.overtimeExemption)
+    ) * coverageCoefficient
+  );
+  const estimatedContributionCharge = Math.max(
+    0,
+    number(declaration.contributions?.totalContributions) -
+      number(declaration.contributions?.overtimeExemption) -
+      estimatedCoveredContributions
+  );
   const chargedCost = declaration.totalToPay == null
     ? eligibleCost
     : Math.max(0, number(declaration.totalToPay));
   const estimatedOutOfPocket = configured
-    ? Math.max(0, chargedCost - estimatedCmg)
+    ? Math.max(
+        0,
+        chargedCost +
+          number(declaration.contributions?.overtimeExemption) -
+          estimatedCmg +
+          estimatedContributionCharge
+      )
+    : null;
+  const hasOfficialCmg = declaration.pajemploiSettlement?.sources?.salaryCmg === "official";
+  const officialCmg = hasOfficialCmg
+    ? Math.max(0, number(declaration.pajemploiSettlement.salaryCmg))
+    : null;
+  const officialVariance = hasOfficialCmg && estimatedCmg != null
+    ? officialCmg - estimatedCmg
+    : null;
+  const inferredMonthlyResources = hasOfficialCmg && retainedCost > 0 && effortRate > 0
+    ? Math.min(
+        parameters.resourceCap,
+        Math.max(
+          parameters.resourceFloor,
+          (1 - Math.min(1, officialCmg / retainedCost)) * referenceHourlyCost / effortRate
+        )
+      )
     : null;
 
   return {
@@ -504,10 +566,19 @@ export function calculateCmg(cmgProfile, declaration) {
     retainedHourlyCost: round(retainedHourlyCost, 4),
     referenceHourlyCost,
     hourlyCap,
+    resourceFloor: parameters.resourceFloor,
+    resourceCap: parameters.resourceCap,
+    coverageCoefficient: round(coverageCoefficient, 6),
+    estimatedCoveredContributions: configured ? round(estimatedCoveredContributions) : null,
+    estimatedContributionCharge: configured ? round(estimatedContributionCharge) : null,
     estimatedCmg: configured ? round(estimatedCmg) : null,
     estimatedOutOfPocket: configured ? round(estimatedOutOfPocket) : null,
     estimatedAidRate: configured && chargedCost > 0 ? round(estimatedCmg / chargedCost * 100, 1) : null,
-    overCapCost: round(Math.max(0, eligibleCost - retainedCost))
+    overCapCost: round(Math.max(0, eligibleCost - retainedCost)),
+    officialCmg,
+    officialVariance: officialVariance == null ? null : round(officialVariance),
+    inferredMonthlyResources: inferredMonthlyResources == null ? null : round(inferredMonthlyResources),
+    inferredAnnualResources: inferredMonthlyResources == null ? null : round(inferredMonthlyResources * 12)
   };
 }
 

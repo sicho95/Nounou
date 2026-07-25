@@ -3,14 +3,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   calculateCmg,
+  calculateContributionEstimate,
   calculateDeclaration,
   calculateEnd,
   calculateMaintenanceAllowance,
   calculatePajemploiSettlement,
+  cmgParametersForPeriod,
   cmgProfileAt,
   contractBasis,
   defaultState,
-  alignKnownNounouTopReference,
   estimatedGrossHourlyRate,
   globalLeaveBalance,
   leaveSummary,
@@ -479,7 +480,8 @@ test("estime le CMG 2026 avec ressources N-2, enfants et coût horaire", () => {
     { annualResourcesN2: 61500, dependentChildren: 2, aeeh: "no" },
     {
       declared: { normalHours: 150, complementaryHours: 0, majorHours: 0, netSalary: 949.5 },
-      expenses: { maintenance: 30, meals: 10 }
+      expenses: { maintenance: 30, meals: 10 },
+      contributions: { period: "2026-07" }
     }
   );
   assert.equal(cmg.monthlyResources, 5125);
@@ -511,7 +513,8 @@ test("le reste à charge CMG conserve les frais non éligibles du total versé",
     {
       declared: { normalHours: 150, complementaryHours: 0, majorHours: 0, netSalary: 949.5 },
       expenses: { maintenance: 30, meals: 10, kilometers: 20 },
-      totalToPay: 1009.5
+      totalToPay: 1009.5,
+      contributions: { period: "2026-07" }
     }
   );
 
@@ -525,7 +528,8 @@ test("retrouve l'estimation CMG du jeu de contrôle familial de juillet 2026", (
     {
       declared: { normalHours: 165, complementaryHours: 0, majorHours: 18, netSalary: 851.77 },
       expenses: { maintenance: 100.16, meals: 112, kilometers: 0 },
-      totalToPay: 1063.93
+      totalToPay: 1063.93,
+      contributions: { period: "2026-07" }
     }
   );
 
@@ -610,39 +614,6 @@ test("retrouve exactement les trois déclarations NounouTop de mai, juin et juil
   }
 });
 
-test("migre automatiquement l’ancienne sauvegarde NounouTop sans ressaisie", () => {
-  const legacy = {
-    contract: {
-      startDate: "2025-09-08",
-      netHourlyRate: "4.6",
-      weeksPerYear: "46"
-    },
-    declarations: {
-      "2026-05": {
-        simulations: [{ input: { actualDays: "16" } }]
-      },
-      "2026-07": {
-        simulations: [{
-          input: {
-            actualDays: "16",
-            monthNote: "Cible Nounou-Top : ancienne sauvegarde"
-          }
-        }]
-      }
-    }
-  };
-
-  assert.equal(alignKnownNounouTopReference(legacy), true);
-  assert.equal(legacy.contract.monthlyBaseNetSalary, 845.64);
-  assert.equal(legacy.declarations["2026-05"].simulations[0].input.actualCareHours, 160);
-  assert.equal(legacy.declarations["2026-07"].simulations[0].input.endingRegularizationNet, 546.99);
-  assert.equal(legacy.declarations["2026-07"].simulations[0].input.endValuesConfirmed, "yes");
-  assert.equal(legacy.declarations["2026-07"].simulations[0].input.officialContributionExemption, 13.15);
-  assert.equal(legacy.declarations["2026-07"].simulations[0].input.officialWithholdingTax, 33.48);
-  assert.equal(legacy.declarations["2026-07"].simulations[0].input.officialCmg, 717);
-  assert.equal(legacy.declarations["2026-07"].simulations[0].input.officialPajemploiDebit, 1357);
-});
-
 test("retrouve le décompte officiel Pajemploi+ de juillet 2026", () => {
   const settlement = calculatePajemploiSettlement(2060.85, {
     officialContributionExemption: 13.15,
@@ -660,4 +631,50 @@ test("retrouve le décompte officiel Pajemploi+ de juillet 2026", () => {
   assert.equal(settlement.contributionCharge, 0);
   assert.equal(settlement.totalCmg, 2141.06);
   assert.equal(settlement.remainingCharge, 1357);
+  assert.equal(settlement.isOfficialComplete, true);
+});
+
+test("estime génériquement les cotisations sans dépendre du contrat de contrôle", () => {
+  const estimate = calculateContributionEstimate({
+    period: "2026-07",
+    subjectNet: 1710.07,
+    overtimeGross: 118.75
+  });
+
+  assert.equal(estimate.estimatedGross, 2189.04);
+  assert.ok(Math.abs(estimate.totalContributions - 1437.21) <= 0.02);
+  assert.equal(estimate.withholdingTaxEstimate, 0);
+});
+
+test("applique le barème CMG daté d’avril 2026", () => {
+  assert.deepEqual(cmgParametersForPeriod("2026-03"), {
+    resourceFloor: 815,
+    resourceCap: 8500,
+    hourlyCap: 8,
+    referenceHourlyCost: 4.85
+  });
+  assert.deepEqual(cmgParametersForPeriod("2026-04"), {
+    resourceFloor: 821,
+    resourceCap: 8500,
+    hourlyCap: 8.09,
+    referenceHourlyCost: 4.91
+  });
+});
+
+test("compare le CMG officiel à la formule sans modifier les ressources saisies", () => {
+  const input = {
+    ...nounouTopReference.declarations["2026-07"].simulations[0].input,
+    officialCmg: 717
+  };
+  const declaration = calculateDeclaration(nounouTopReference.contract, input);
+  const cmg = calculateCmg(
+    { annualResourcesN2: 59700, dependentChildren: 2, aeeh: "no" },
+    declaration
+  );
+
+  assert.equal(cmg.annualResources, 59700);
+  assert.equal(cmg.estimatedCmg, 901.12);
+  assert.equal(cmg.officialCmg, 717);
+  assert.equal(cmg.officialVariance, -184.12);
+  assert.ok(cmg.inferredAnnualResources > 70000);
 });

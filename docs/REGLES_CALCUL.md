@@ -149,7 +149,7 @@ Dans le jeu de contrôle NounouTop de juillet 2026, le salaire net du mois est f
 
 L’indemnité compensatrice de congés payés de 317,44 € reste dans sa case dédiée et s’ajoute au total versé ; elle ne doit pas être confondue avec le salaire net mensuel de 1 392,63 €.
 
-Le total des éléments saisis n’est pas forcément le montant finalement viré par Pajemploi+. La déclaration officielle de juillet confirme 2 060,85 € de rémunération saisie, 1 437,21 € de cotisations et donc 3 498,06 € de coût total de l’emploi. Pajemploi ajoute 13,15 € d’exonération puis retire 33,48 € de prélèvement à la source : la salariée reçoit 2 040,52 €. Le CMG comprend 717 € affectés au salaire et 1 424,06 € de cotisations prises en charge, soit 2 141,06 € au total. Le reste à charge officiel de la famille est de 1 357 €.
+Le total des éléments saisis n’est pas forcément le montant finalement viré par Pajemploi+. Dans le jeu de test uniquement, la déclaration officielle de juillet confirme 2 060,85 € de rémunération saisie, 1 437,21 € de cotisations et donc 3 498,06 € de coût total de l’emploi. Pajemploi ajoute 13,15 € d’exonération puis retire 33,48 € de prélèvement à la source : la salariée reçoit 2 040,52 €. Le CMG comprend 717 € affectés au salaire et 1 424,06 € de cotisations prises en charge, soit 2 141,06 € au total. Le reste à charge officiel de la famille est de 1 357 €. Ces montants ne sont jamais injectés dans une sauvegarde ou un contrat : ils constituent seulement des assertions de non-régression.
 
 La fin de contrat est intégrée à la déclaration du dernier mois. Les champs proposés correspondent à la rubrique Pajemploi : date et motif de fin, prime de précarité, indemnité compensatrice de congés payés et jours soldés, indemnité compensatrice de préavis, indemnité de rupture et régularisation de salaire.
 
@@ -186,9 +186,9 @@ Un mois peut contenir plusieurs simulations. Elles ne participent ni au compteur
 
 Le bulletin de salaire est produit par l’Urssaf service Pajemploi. NounouCalc génère à la place un dossier employeur récapitulatif des données du contrat et des seules déclarations confirmées.
 
-Pour 2026, l’estimation du CMG utilise :
+Pour la période du 1er avril 2026 au 31 mars 2027, l’estimation du CMG utilise :
 
-- les ressources annuelles CAF N−2, obligatoires pour produire une estimation, divisées par douze et bornées entre 814,02 € et 8 500 € ;
+- les ressources annuelles CAF N−2, obligatoires pour produire une estimation, divisées par douze, arrondies à l’euro puis bornées entre 821 € et 8 500 € ;
 - le nombre d’enfants à charge ;
 - le taux d’effort correspondant ;
 - le coût net de la garde, incluant salaire, entretien et repas ;
@@ -196,6 +196,23 @@ Pour 2026, l’estimation du CMG utilise :
 - le plafond horaire assistant maternel de 8,09 €.
 
 Le montant officiel calculé par Pajemploi+ peut être enregistré après validation et remplace alors l’estimation dans le dossier employeur.
+
+La formule générique appliquée est celle du code de la sécurité sociale :
+
+```text
+coût mensuel retenu =
+  minimum(coût mensuel réel, plafond horaire × heures rémunérées)
+
+CMG rémunération estimé =
+  coût mensuel retenu ×
+  (1 − ressources mensuelles × taux d’effort ÷ coût horaire de référence)
+```
+
+Le coût réel comprend le salaire net, les éléments de salaire soumis à cotisations, l’entretien et les repas. Le nombre d’heures rémunérées exact est utilisé lorsqu’il est connu ; sinon, l’application utilise les heures mensualisées et les équivalents de congés ou de régularisation calculés. En présence d’un droit AEEH, le taux d’effort immédiatement inférieur est appliqué.
+
+Les cotisations sont estimées en reconstituant le brut depuis le net puis en appliquant les taux salariés et employeurs datés. L’exonération des heures complémentaires et majorées est estimée sur leur rémunération brute. Cette estimation peut différer de quelques centimes du moteur de paie Pajemploi, qui rebrutalise chaque rubrique. Le prélèvement à la source n’est calculé que si l’utilisateur renseigne un taux connu ; le taux réellement transmis par la DGFiP et le montant Pajemploi recopié restent prioritaires.
+
+Lorsque le CMG officiel diffère de la formule, NounouCalc conserve les deux valeurs et affiche l’écart ainsi que les ressources annuelles équivalentes. Il ne modifie jamais automatiquement les ressources saisies : l’écart peut provenir des ressources CAF réellement transmises, d’une situation AEEH ou d’une autre donnée allocataire non disponible dans l’application.
 
 Pour le dernier mois, le coût de garde comprend le salaire net déclaré et les éléments de fin soumis à cotisations, même lorsqu’ils sont présentés dans une case séparée (notamment congés et préavis). La régularisation est déjà comprise dans le salaire net du mois. L’indemnité de rupture, exonérée de cotisations et déclarée séparément, n’ouvre pas droit au CMG : elle reste intégralement dans le reste à charge.
 
@@ -211,6 +228,10 @@ Sources complémentaires :
   https://www.urssaf.fr/accueil/actualites/evolution-cmg-ce-qui-va-changer.html
 - Instruction interministérielle DSS/2B/2026/46 du 20 mars 2026  
   https://bulletins-officiels.social.gouv.fr/sites/textes-officiels/files/2026-03/SFHS2607952J.pdf
+- Code de la sécurité sociale, article D. 531-18 (formule du CMG emploi direct)
+  https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000051721668/
+- Urssaf, « Les algorithmes de calcul des cotisations Pajemploi »
+  https://www.urssaf.fr/accueil/utilisation-algorithmes/calcul-cotisations-pajemploi.html
 
 ## 7. Points à comparer avec NounouTop
 

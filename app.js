@@ -3,10 +3,10 @@ import {
   calculateCmg,
   calculateDeclaration,
   calculateEnd,
+  calculatePajemploiSettlement,
   cmgProfileAt,
   contractBasis,
   defaultState,
-  alignKnownNounouTopReference,
   estimatedGrossHourlyRate,
   leaveSummary,
   money,
@@ -98,6 +98,7 @@ const monthlyFields = {
   officialPajemploiDebit: "officialPajemploiDebit",
   officialContributionExemption: "officialContributionExemption",
   officialWithholdingTax: "officialWithholdingTax",
+  withholdingTaxRate: "withholdingTaxRate",
   officialTotalContributions: "officialTotalContributions",
   officialCoveredContributions: "officialCoveredContributions",
   officialEmployeeRecovery: "officialEmployeeRecovery",
@@ -113,7 +114,7 @@ function loadState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (parsed?.version === DATA_VERSION) return parsed;
-    if ([2, 3, 4].includes(parsed?.version)) return upgradeV2(parsed);
+    if ([2, 3, 4, 5, 6, 7, 8].includes(parsed?.version)) return upgradeV2(parsed);
   } catch (error) {
     console.warn("Sauvegarde illisible", error);
   }
@@ -226,7 +227,6 @@ function upgradeV2(oldState) {
       upgraded.declarations[period] = { simulations: [{ ...record, id, status: "simulation" }], officialId: null };
     }
   }
-  alignKnownNounouTopReference(upgraded);
   return recalculateImportedState(upgraded);
 }
 
@@ -506,6 +506,7 @@ function defaultMonthly(period) {
     officialPajemploiDebit: "",
     officialContributionExemption: "",
     officialWithholdingTax: "",
+    withholdingTaxRate: "",
     officialTotalContributions: "",
     officialCoveredContributions: "",
     officialEmployeeRecovery: "",
@@ -566,6 +567,7 @@ function newSimulation() {
     officialPajemploiDebit: "",
     officialContributionExemption: "",
     officialWithholdingTax: "",
+    withholdingTaxRate: "",
     officialTotalContributions: "",
     officialCoveredContributions: "",
     officialEmployeeRecovery: "",
@@ -591,6 +593,14 @@ function calculateRecordResults(input) {
   results.cmg.officialPajemploiDebit = input.officialPajemploiDebit === "" || input.officialPajemploiDebit == null
     ? null
     : number(input.officialPajemploiDebit);
+  results.pajemploiSettlement = calculatePajemploiSettlement(results.totalToPay, input, {
+    configured: results.cmg.configured,
+    contributionExemption: results.contributions.overtimeExemption,
+    withholdingTax: results.contributions.withholdingTaxEstimate,
+    salaryCmg: results.cmg.estimatedCmg,
+    totalContributions: results.contributions.totalContributions,
+    coveredContributions: results.cmg.estimatedCoveredContributions
+  });
   return results;
 }
 
@@ -691,10 +701,10 @@ function calculateMonthlyEndSuggestions() {
   }
   $("endAutoInfo").innerHTML =
     (preserveReferenceValues
-      ? `<strong>Valeurs de référence conservées :</strong> ` +
+      ? `<strong>Valeurs saisies conservées :</strong> ` +
         `${money(input.endingRegularizationNet)} de régularisation, ` +
         `${money(input.endingCpNet)} de congés et ${money(input.ruptureIndemnityNet)} d’indemnité de rupture. ` +
-        `Les montants déjà contrôlés avec NounouTop/Pajemploi ne sont pas écrasés.`
+        `Décochez « valeurs de fin contrôlées » pour demander une nouvelle proposition automatique.`
       : `<strong>Solde calculé pour cette dernière déclaration :</strong> ${result.leaveBalance.remainingDays.toLocaleString("fr-FR")} jours de congés à solder, `) +
     (preserveReferenceValues ? "" :
       `${money(result.suggestedCpCompensation)} de congés ` +
@@ -798,14 +808,31 @@ function renderResults(record) {
   $("outFamilyCost").textContent = hasOfficialDebit
     ? money(results.cmg.officialPajemploiDebit)
     : (cmgConfigured ? money(results.cmg.estimatedOutOfPocket) : "À renseigner");
-  $("outCmgDetail").textContent = results.cmg
-    ? (hasOfficialDebit
-      ? "Montant réel prélevé par Pajemploi+"
-      : cmgConfigured
-        ? `${results.cmg.estimatedAidRate.toLocaleString("fr-FR")} % d’aide estimée • ${results.cmg.hours.toLocaleString("fr-FR")} h prises en compte` +
-          (results.cmg.effectivePeriod ? ` • ressources applicables depuis ${monthLabel(results.cmg.effectivePeriod)}` : "")
-        : "Renseignez vos ressources CAF 2024 dans Contrat pour obtenir une estimation")
-    : "Renseignez les ressources CAF dans le contrat";
+  const cmgDetails = [];
+  if (hasOfficialDebit) cmgDetails.push("reste à charge réel recopié depuis Pajemploi+");
+  if (cmgConfigured) {
+    cmgDetails.push(
+      `${results.cmg.estimatedAidRate.toLocaleString("fr-FR")} % d’aide estimée`,
+      `${results.cmg.hours.toLocaleString("fr-FR")} h prises en compte`
+    );
+    if (results.cmg.effectivePeriod) {
+      cmgDetails.push(`ressources applicables depuis ${monthLabel(results.cmg.effectivePeriod)}`);
+    }
+    if (hasOfficialCmg && results.cmg.officialVariance != null) {
+      cmgDetails.push(
+        `estimation par la formule : ${money(results.cmg.estimatedCmg)}`,
+        `écart officiel : ${money(results.cmg.officialVariance)}`
+      );
+      if (results.cmg.inferredAnnualResources) {
+        cmgDetails.push(
+          `ressources annuelles équivalentes : environ ${results.cmg.inferredAnnualResources.toLocaleString("fr-FR")} €`
+        );
+      }
+    }
+  }
+  $("outCmgDetail").textContent = cmgDetails.length
+    ? cmgDetails.join(" • ")
+    : "Renseignez vos ressources CAF dans Contrat pour obtenir une estimation";
   $("outMaintenance").textContent = money(expenses.maintenance);
   $("outMeals").textContent = money(expenses.meals);
   $("outKilometers").textContent = money(expenses.kilometers);
@@ -814,23 +841,39 @@ function renderResults(record) {
   const settlement = results.pajemploiSettlement;
   $("outPajemploiSettlementCard").classList.toggle("hidden", !settlement?.configured);
   if (settlement?.configured) {
+    const sourceLabel = key => settlement.sources?.[key] === "official"
+      ? "• Pajemploi"
+      : "• estimation";
+    $("outPajemploiSettlementTitle").textContent = settlement.isOfficialComplete
+      ? "Rapprochement officiel Pajemploi+"
+      : settlement.officialCount
+        ? "Estimation complétée par Pajemploi+"
+        : "Estimation Pajemploi+";
     $("outPajemploiSettlement").innerHTML = [
-      row("Coût total de l’emploi", settlement.totalEmploymentCost),
+      row("Coût total de l’emploi", settlement.totalEmploymentCost, sourceLabel("totalContributions")),
       row("Total des éléments calculés", settlement.declaredElementsTotal),
-      row("Cotisations totales", settlement.totalContributions),
-      row("Exonération ajoutée par Pajemploi", settlement.contributionExemption),
-      row("Prélèvement à la source retiré", -settlement.withholdingTax),
-      row("Virement Pajemploi+ à la salariée", settlement.pajemploiTransfer),
-      row("CMG affecté au salaire", -settlement.salaryCmg),
-      row("Cotisations prises en charge", -settlement.coveredContributions),
-      row("CMG total", settlement.totalCmg),
+      row("Cotisations totales", settlement.totalContributions, sourceLabel("totalContributions")),
+      row("Exonération heures majorées", settlement.contributionExemption, sourceLabel("contributionExemption")),
+      row(
+        "Prélèvement à la source retiré",
+        -settlement.withholdingTax,
+        results.contributions?.withholdingTaxRate
+          ? sourceLabel("withholdingTax")
+          : settlement.sources?.withholdingTax === "official"
+            ? "• Pajemploi"
+            : "• non estimé, taux DGFiP manquant"
+      ),
+      row("Virement à la salariée", settlement.pajemploiTransfer),
+      row("CMG affecté au salaire", -settlement.salaryCmg, sourceLabel("salaryCmg")),
+      row("Cotisations prises en charge", -settlement.coveredContributions, sourceLabel("coveredContributions")),
+      row("CMG total", settlement.totalCmg, "• salaire + cotisations"),
       row("Reste à charge au titre du salaire", settlement.salaryCharge),
       row("Reste à charge au titre des cotisations", settlement.contributionCharge),
       settlement.employeeRecovery
         ? row("Somme à récupérer auprès de la salariée", -settlement.employeeRecovery)
         : "",
       row("Montant final reçu par la salariée", settlement.finalDue),
-      row("Reste total à votre charge", settlement.remainingCharge)
+      row("Reste total à votre charge", settlement.remainingCharge, sourceLabel("remainingCharge"))
     ].join("");
   }
 
@@ -978,7 +1021,7 @@ function renderHistory() {
         : "") +
       (number(record.input.bonusGross) ? ` • prime brute ${money(record.input.bonusGross)}` : "") +
       (record.results.ending?.active ? ` • fin de contrat ${new Date(`${record.results.ending.endDate}T12:00:00`).toLocaleDateString("fr-FR")}` : "") +
-      ` • coût famille ${money(record.results.cmg?.officialPajemploiDebit || record.results.cmg?.estimatedOutOfPocket)}`;
+      ` • coût famille ${money(record.results.cmg?.officialPajemploiDebit ?? record.results.cmg?.estimatedOutOfPocket)}`;
     fragment.querySelector(".history-edit").addEventListener("click", () => {
       showTab("monthly");
       loadMonth(period, record.id);
@@ -1270,6 +1313,7 @@ function recalculateImportedState(importedState) {
   for (const [period, bucket] of Object.entries(importedState.declarations || {})) {
     for (const record of bucket?.simulations || []) {
       record.input = normalizeMonthlyActivity({ ...record.input, period }, importedState.contract);
+      const isOfficial = Boolean(bucket.officialId && record.id === bucket.officialId);
       if (
         record.input.isEndContract === "yes" &&
         (record.input.endingRegularizationHours === "" || record.input.endingRegularizationHours == null)
@@ -1278,8 +1322,16 @@ function recalculateImportedState(importedState) {
           ? round(number(record.input.endingRegularizationNet) / number(importedState.contract.netHourlyRate), 2)
           : 0;
       }
-      record.results = calculateDeclaration(importedState.contract, record.input);
-      record.results.cmg = calculateCmg(cmgProfileForPeriod(period, importedState), record.results);
+      const recalculated = calculateDeclaration(importedState.contract, record.input);
+      record.results = isOfficial && record.results
+        ? record.results
+        : recalculated;
+      record.results.contributions ||= recalculated.contributions;
+      const previousCmg = record.results.cmg;
+      const calculatedCmg = calculateCmg(cmgProfileForPeriod(period, importedState), record.results);
+      record.results.cmg = isOfficial && previousCmg
+        ? { ...calculatedCmg, ...previousCmg }
+        : calculatedCmg;
       record.results.cmg.officialCmg = record.input.officialCmg === "" || record.input.officialCmg == null
         ? null
         : number(record.input.officialCmg);
@@ -1287,6 +1339,19 @@ function recalculateImportedState(importedState) {
         record.input.officialPajemploiDebit === "" || record.input.officialPajemploiDebit == null
           ? null
           : number(record.input.officialPajemploiDebit);
+      const previousSettlement = record.results.pajemploiSettlement;
+      const calculatedSettlement = calculatePajemploiSettlement(record.results.totalToPay, record.input, {
+        configured: record.results.cmg.configured,
+        contributionExemption: record.results.contributions.overtimeExemption,
+        withholdingTax: record.results.contributions.withholdingTaxEstimate,
+        salaryCmg: record.results.cmg.estimatedCmg,
+        totalContributions: record.results.contributions.totalContributions,
+        coveredContributions: record.results.cmg.estimatedCoveredContributions
+      });
+      record.results.pajemploiSettlement = isOfficial && previousSettlement
+        ? { ...calculatedSettlement, ...previousSettlement }
+        : calculatedSettlement;
+      if (isOfficial) record.recalculatedAt = record.recalculatedAt || null;
     }
   }
   return importedState;
@@ -1298,7 +1363,7 @@ async function importData(event) {
   try {
     const parsed = JSON.parse(await file.text());
     const importedState = parsed?.format === "nounoucalc-complete-backup" ? parsed.state : parsed;
-    if (![2, 3, 4, 5, 6, 7, DATA_VERSION].includes(importedState?.version) || !importedState.contract || !importedState.declarations) {
+    if (![2, 3, 4, 5, 6, 7, 8, DATA_VERSION].includes(importedState?.version) || !importedState.contract || !importedState.declarations) {
       throw new Error("Format non reconnu");
     }
     if (!confirm("Remplacer les données locales par cette sauvegarde ?")) return;

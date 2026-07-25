@@ -318,9 +318,9 @@
       </details>
 
       <details class="card collapsible">
-        <summary>Montants officiels après saisie Pajemploi</summary>
+        <summary>Simulation Pajemploi+ et montants officiels</summary>
         <div class="collapsible-body">
-        <p class="hint">Ces montants sont facultatifs et se recopient après la déclaration. Ils permettent notamment de rapprocher le total calculé du virement Pajemploi+ réellement reçu.</p>
+        <p class="hint">Le taux permet une simulation du prélèvement à la source. Les autres montants, facultatifs, se recopient après la déclaration pour rapprocher l’estimation du décompte réellement produit par Pajemploi+.</p>
         <label>Salaire brut officiel du mois <span class="optional">(facultatif)</span>
           <input id="officialGross" type="number" min="0" step="0.01" placeholder="À recopier après la déclaration">
           <small>Montant du bulletin Pajemploi. Il est utilisé pour toute la durée du contrat, mois de fin compris.</small>
@@ -334,11 +334,17 @@
           </label>
         </div>
         <div class="form-grid two compact-grid">
+          <label>Taux de prélèvement à la source connu (%)
+            <input id="withholdingTaxRate" type="number" min="0" max="100" step="0.001">
+            <small>Pour la simulation uniquement. Le taux transmis à Pajemploi par la DGFiP reste prioritaire.</small>
+          </label>
           <label>Exonération ajoutée par Pajemploi
             <input id="officialContributionExemption" type="number" min="0" step="0.01">
+            <small>À recopier seulement après la déclaration.</small>
           </label>
           <label>Prélèvement à la source retiré
             <input id="officialWithholdingTax" type="number" min="0" step="0.01">
+            <small>À recopier seulement après la déclaration.</small>
           </label>
           <label>Montant total des cotisations
             <input id="officialTotalContributions" type="number" min="0" step="0.01">
@@ -436,7 +442,7 @@
         </div>
 
         <div id="outPajemploiSettlementCard" class="card breakdown hidden">
-          <h3>Rapprochement avec le virement Pajemploi+</h3>
+          <h3 id="outPajemploiSettlementTitle">Estimation Pajemploi+</h3>
           <div id="outPajemploiSettlement"></div>
           <p class="hint">Le virement à la salariée, le CMG total et votre reste à charge sont des montants différents. Le récapitulatif officiel Pajemploi reste la référence.</p>
         </div>

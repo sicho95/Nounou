@@ -42,7 +42,7 @@ Pour préparer une fin de contrat, renseigner aussi dans **Contrat** les coordon
 
 Le stockage courant et IndexedDB contiennent le même état complet. IndexedDB conserve en plus les 30 derniers instantanés afin de mieux résister à une écriture interrompue. L’export JSON est portable et inclut tous les paramètres, l’administratif, la configuration CMG, les préférences, toutes les simulations et toutes les déclarations validées.
 
-L’import recalcule systématiquement les résultats de chaque simulation à partir des données du contrat et des saisies mensuelles. Le jeu de contrôle NounouTop conserve aussi les valeurs historiques déjà vérifiées : salaire mensualisé contractuel, temps payé exact, régularisation et indemnités de fin. Elles ne sont pas écrasées par le bouton **(Re)Calculer**.
+L’import recalcule les brouillons et simulations à partir des données du contrat et des saisies mensuelles. Une déclaration déjà confirmée sur Pajemploi reste figée : une modification ultérieure du contrat, des ressources CAF ou du moteur ne réécrit jamais son salaire, ses congés ni son reste à charge historiques. Aucun contrat, nom ou montant de référence n’est reconnu ni injecté par le moteur. Les valeurs NounouTop et Pajemploi fournies pour mai, juin et juillet 2026 sont conservées uniquement dans les tests automatisés : elles servent à détecter une régression, jamais à modifier les données réelles de l’utilisateur.
 
 Le service worker utilise une stratégie réseau prioritaire avec repli hors ligne. L’application compare le dernier commit de `main` au démarrage, au retour au premier plan et toutes les cinq minutes ; `build.json` sert de repli si l’API publique GitHub est temporairement indisponible. Si le code a changé, le brouillon courant est placé temporairement en mémoire de session, la PWA se recharge, puis le brouillon est restauré. Il n’est donc pas nécessaire de modifier le numéro de version officiel pour diffuser une correction.
 
@@ -59,5 +59,7 @@ node --test
 ## Limites importantes
 
 NounouCalc calcule automatiquement tout ce qui peut l’être à partir du contrat, des heures et jours réels et de l’historique confirmé. Il reste un outil d’aide et non un service de paie : une absence, un repas fourni par le parent ou un planning quotidien différent sont des faits que le logiciel ne peut pas deviner. Le récapitulatif de l’Urssaf fait foi avant validation. Le dossier employeur n’est pas l’attestation France Travail officielle : celle-ci doit être générée et transmise via le service Pajemploi-France Travail, puis remise à la salariée.
+
+Les cotisations, l’exonération d’heures majorées, le CMG et le prélèvement à la source sont présentés comme des **estimations réglementaires** tant que les montants officiels n’ont pas été recopiés. Pajemploi reçoit directement certaines données CAF et DGFiP que NounouCalc ne peut pas lire. L’écran distingue donc systématiquement une estimation d’une valeur officielle.
 
 Les règles et choix de calcul sont documentés dans [docs/REGLES_CALCUL.md](docs/REGLES_CALCUL.md).
