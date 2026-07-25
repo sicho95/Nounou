@@ -1,0 +1,72 @@
+{
+  "contract": {
+    "startDate": "2025-09-08",
+    "contractType": "CDI",
+    "weeksPerYear": 44,
+    "daysPerWeek": 5,
+    "normalHoursPerWeek": 45,
+    "majorHoursPerWeek": 5,
+    "netHourlyRate": 4.6,
+    "grossHourlyRate": 5.8884,
+    "majorMarkup": 10,
+    "complementaryMarkup": 0,
+    "monthlyBaseNetSalary": 845.64,
+    "maintenanceRate": 4,
+    "mealRate": 7,
+    "partialMealRate": 4
+  },
+  "declarations": {
+    "2026-05": {
+      "simulations": [
+        {
+          "input": {
+            "period": "2026-05",
+            "actualDays": 16,
+            "actualCareHours": 160,
+            "meals": 16,
+            "franceTravailPaidHours": 183.3,
+            "isEndContract": "no"
+          }
+        }
+      ]
+    },
+    "2026-06": {
+      "simulations": [
+        {
+          "input": {
+            "period": "2026-06",
+            "actualDays": 22,
+            "actualCareHours": 220,
+            "meals": 22,
+            "cpDaysDeclared": 24,
+            "cpPaidNet": 936.09,
+            "franceTravailPaidHours": 385.3,
+            "isEndContract": "no"
+          }
+        }
+      ]
+    },
+    "2026-07": {
+      "simulations": [
+        {
+          "input": {
+            "period": "2026-07",
+            "actualDays": 16,
+            "actualCareHours": 159.18,
+            "meals": 15,
+            "partialMeals": 1,
+            "franceTravailPaidHours": 301.7,
+            "isEndContract": "yes",
+            "endingCpNet": 317.44,
+            "endingCpDays": 3,
+            "ruptureIndemnityNet": 172.38,
+            "endingRegularizationNet": 546.99,
+            "endingRegularizationHours": 118.38,
+            "endingRegularizationDays": 13.99,
+            "endValuesConfirmed": "yes"
+          }
+        }
+      ]
+    }
+  }
+}

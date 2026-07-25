@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   calculateCmg,
   calculateDeclaration,
@@ -28,6 +29,10 @@ const contract = {
   maintenanceRate: 3.8,
   mealRate: 4
 };
+
+const nounouTopReference = JSON.parse(
+  readFileSync(new URL("./fixtures/nounoutop-calculation-reference.json", import.meta.url), "utf8")
+);
 
 test("prévoit les identifiants nécessaires au mémo France Travail", () => {
   const state = defaultState();
@@ -566,4 +571,39 @@ test("applique chaque ressource CMG uniquement à partir de son mois d'effet", (
   assert.equal(cmgProfileAt(history, {}, "2026-07").annualResourcesN2, 50000);
   assert.equal(cmgProfileAt(history, {}, "2026-08").annualResourcesN2, 59700);
   assert.equal(cmgProfileAt(history, {}, "2027-01").annualResourcesN2, 59700);
+});
+
+test("retrouve exactement les trois déclarations NounouTop de mai, juin et juillet 2026", () => {
+  const referenceState = nounouTopReference;
+  const expected = {
+    "2026-05": {
+      days: 19, normalHours: 165, majorHours: 18, netSalary: 845.64,
+      maintenance: 68.16, meals: 112
+    },
+    "2026-06": {
+      days: 19, normalHours: 367, majorHours: 18, netSalary: 1781.73,
+      maintenance: 95.92, meals: 154
+    },
+    "2026-07": {
+      days: 31, normalHours: 283, majorHours: 18, netSalary: 1392.63,
+      maintenance: 69.4, meals: 109, endingCpNet: 317.44,
+      ruptureIndemnityNet: 172.38, totalToPay: 2060.85
+    }
+  };
+
+  for (const [period, target] of Object.entries(expected)) {
+    const input = referenceState.declarations[period].simulations[0].input;
+    const result = calculateDeclaration(referenceState.contract, input);
+    assert.equal(result.declared.days, target.days, `${period} jours`);
+    assert.equal(result.declared.normalHours, target.normalHours, `${period} heures normales`);
+    assert.equal(result.declared.majorHours, target.majorHours, `${period} heures majorées`);
+    assert.equal(result.declared.netSalary, target.netSalary, `${period} salaire net`);
+    assert.equal(result.expenses.maintenance, target.maintenance, `${period} entretien`);
+    assert.equal(result.expenses.meals, target.meals, `${period} repas`);
+    if (period === "2026-07") {
+      assert.equal(result.ending.cpCompensationNet, target.endingCpNet);
+      assert.equal(result.ending.ruptureIndemnityNet, target.ruptureIndemnityNet);
+      assert.equal(result.totalToPay, target.totalToPay);
+    }
+  }
 });

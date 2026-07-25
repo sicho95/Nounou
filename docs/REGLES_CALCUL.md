@@ -1,6 +1,6 @@
 # Règles de calcul et décisions de conception
 
-Mise à jour : 24 juillet 2026.
+Mise à jour : 25 juillet 2026.
 
 ## 1. Mensualisation
 
@@ -25,6 +25,8 @@ jours mensualisés exacts =
 ```
 
 Le salaire est calculé avec les valeurs exactes non arrondies. L’écran présente séparément les nombres entiers destinés à la saisie Pajemploi.
+
+Lorsque le contrat indique déjà un salaire net mensualisé de base, ce montant contractuel est prioritaire sur une reconstruction à partir des seuls taux. Cela évite de perdre les particularités du contrat ou des heures majorées lors d’une conversion simplifiée brut/net.
 
 ## 2. Heures
 
@@ -55,7 +57,7 @@ indemnité journalière =
   et le montant contractuel proratisé lorsqu’il est plus favorable
 ```
 
-Le minimum de référence pour neuf heures est de 3,80 € en 2025, 3,83 € de janvier à mai 2026 et 3,92 € depuis juin 2026. Le total mensuel est la somme des indemnités journalières arrondies au centime. Si tous les jours ont la même durée, NounouCalc applique cette durée moyenne à chaque journée.
+Le minimum de référence pour neuf heures est de 3,80 € en 2025, 3,83 € de janvier à mai 2026 et 3,92 € depuis juin 2026. Le total mensuel est la somme des indemnités journalières arrondies au centime. NounouCalc répartit les heures réelles entre les journées habituelles complètes et l’éventuelle dernière journée partielle. Cette règle retrouve 68,16 € pour 16 journées de 10 heures en mai 2026 et 69,40 € pour 15 journées de 10 heures plus une journée de 9,18 heures en juillet 2026.
 
 Les repas n’ont pas de tarif légal unique : les tarifs des repas complets et partiels sont définis au contrat. Le montant mensuel est calculé automatiquement en multipliant chaque quantité réelle par son tarif. Aucun repas n’est compté lorsque le parent fournit le repas.
 
@@ -69,11 +71,16 @@ Le compteur est reconstruit automatiquement depuis la date de début du contrat,
 
 Le nombre acquis affiché en cours de période garde ses décimales. L’arrondi au jour entier supérieur est appliqué au bilan d’une période de référence clôturée. Les éventuels jours supplémentaires pour enfant à charge de moins de 15 ans sont ajoutés à ce bilan, sans pouvoir dépasser 30 jours au total.
 
-Lorsqu’une indemnité de congés payés est versée, son montant net est aussi converti en heures au taux normal et ajouté aux heures normales à déclarer :
+Lorsqu’une indemnité de congés payés est versée, son montant net est aussi converti en heures au taux normal et ajouté aux heures normales à déclarer. Si le temps payé exact du bulletin ou du dossier France Travail a déjà été recopié, cette valeur historique est prioritaire et les heures normales sont obtenues en retirant les heures majorées :
 
 ```text
 heures équivalentes de congés = montant net des congés ÷ taux horaire net normal
 heures normales à déclarer = arrondi(heures normales mensualisées + heures équivalentes de congés)
+
+ou, avec le temps payé exact :
+
+heures normales à déclarer =
+  arrondi(temps payé exact − heures majorées − heures complémentaires)
 ```
 
 Cette règle explique le passage de 165 heures normales en mai à 367 heures en juin dans les captures NounouTop transmises.
@@ -138,7 +145,9 @@ jours de régularisation =
   total des jours réels − total des jours mensualisés déjà déclarés
 ```
 
-La conversion monétaire des heures est celle illustrée par NounouTop : une régularisation nette de 544,55 € à 4,60 € net par heure représente 118,38 heures à ajouter. Ces valeurs positives sont ajoutées respectivement aux heures normales et aux jours mensualisés du dernier mois. Le résultat des jours est plafonné à 31, maximum accepté par Pajemploi. L’écran expose le détail « mensualisation + régularisation » pour éviter de confondre cette valeur déclarative avec les seuls jours réellement gardés du dernier mois.
+Dans le jeu de contrôle NounouTop de juillet 2026, le salaire net du mois est formé par 845,64 € de mensualisation et 546,99 € de régularisation, soit 1 392,63 €. Le temps payé exact est de 301,7 heures : après retrait des 18,33 heures majorées exactes, les heures normales deviennent 283,37 heures, soit 283 heures à déclarer. Les 13,99 jours équivalents de régularisation s’ajoutent aux 18,33 jours mensualisés et le résultat est plafonné à 31 jours, maximum accepté par Pajemploi.
+
+L’indemnité compensatrice de congés payés de 317,44 € reste dans sa case dédiée et s’ajoute au total versé ; elle ne doit pas être confondue avec le salaire net mensuel de 1 392,63 €.
 
 La fin de contrat est intégrée à la déclaration du dernier mois. Les champs proposés correspondent à la rubrique Pajemploi : date et motif de fin, prime de précarité, indemnité compensatrice de congés payés et jours soldés, indemnité compensatrice de préavis, indemnité de rupture et régularisation de salaire.
 

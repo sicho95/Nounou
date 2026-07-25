@@ -263,6 +263,7 @@
               <label>Régularisation de salaire nette
                 <input id="endingRegularizationNet" type="number" min="0" step="0.01" value="0">
               </label>
+              <input id="endValuesConfirmed" type="hidden" value="no">
               <label>Heures de régularisation à ajouter
                 <input id="endingRegularizationHours" type="number" min="0" step="0.01" value="0" readonly>
                 <small>Calculées depuis les heures réelles de l’historique.</small>
@@ -498,6 +499,10 @@
           <label>Majoration heures complémentaires
             <input id="complementaryMarkup" type="number" min="0" step="0.01" value="0">
             <small>Seulement si elle est écrite au contrat.</small>
+          </label>
+          <label>Salaire net mensualisé de base
+            <input id="monthlyBaseNetSalary" type="number" min="0" step="0.01" value="0">
+            <small>Montant fixe prévu au contrat. Laisser 0 pour le calculer depuis les heures et les taux.</small>
           </label>
           <label>Entretien contractuel / journée habituelle
             <input id="maintenanceRate" type="number" min="0" step="0.01" value="0">

@@ -1,4 +1,4 @@
-export const DATA_VERSION = 5;
+export const DATA_VERSION = 6;
 
 export function number(value, fallback = 0) {
   const parsed = Number.parseFloat(value);
@@ -38,19 +38,43 @@ export function calculateMaintenanceAllowance(contract, input) {
   const averageHoursPerDay = actualHours / days;
   const legalNineHours = maintenanceMinimumForPeriod(input.period);
   const agreedUsualDay = Math.max(0, number(contract.maintenanceRate));
+  const allowanceForHours = hours => {
+    const agreedProrated = agreedUsualDay > 0 && usualHoursPerDay > 0
+      ? agreedUsualDay * hours / usualHoursPerDay
+      : 0;
+    const legalProrated = legalNineHours * hours / 9;
+    return round(Math.max(2.65, agreedProrated, legalProrated));
+  };
+  const fullDays = usualHoursPerDay > 0
+    ? Math.min(days, Math.floor((actualHours + 1e-9) / usualHoursPerDay))
+    : 0;
+  const remainderHours = usualHoursPerDay > 0
+    ? Math.max(0, actualHours - fullDays * usualHoursPerDay)
+    : 0;
+  const partialDays = Math.max(0, days - fullDays);
+  const fullDayAllowance = fullDays > 0 ? allowanceForHours(usualHoursPerDay) : 0;
+  const partialDayAllowance = partialDays > 0
+    ? allowanceForHours(remainderHours / partialDays)
+    : 0;
+  const total = round(fullDays * fullDayAllowance + partialDays * partialDayAllowance);
+  const daily = days > 0 ? round(total / days, 4) : 0;
   const agreedProrated = agreedUsualDay > 0 && usualHoursPerDay > 0
     ? agreedUsualDay * averageHoursPerDay / usualHoursPerDay
     : 0;
   const legalProrated = legalNineHours * averageHoursPerDay / 9;
-  const daily = round(Math.max(2.65, agreedProrated, legalProrated));
   return {
-    total: round(daily * days),
+    total,
     daily,
     hours: round(actualHours, 2),
     averageHoursPerDay: round(averageHoursPerDay, 4),
     legalNineHours,
     agreedUsualDay,
-    legalProrated: round(legalProrated, 4)
+    legalProrated: round(legalProrated, 4),
+    fullDays,
+    fullDayAllowance,
+    partialDays,
+    partialDayAllowance,
+    remainderHours: round(remainderHours, 2)
   };
 }
 
@@ -172,8 +196,15 @@ export function calculateDeclaration(contract, input) {
   const otherSalaryNet = number(input.otherSalaryNet);
   const deduction = Math.max(0, number(input.absenceDeductionNet));
 
-  const normalNet = basis.normalHoursExact * netRate;
-  const contractMajorNet = basis.majorHoursExact * netRate * majorFactor;
+  const calculatedNormalNet = basis.normalHoursExact * netRate;
+  const calculatedContractMajorNet = basis.majorHoursExact * netRate * majorFactor;
+  const monthlyBaseNet = Math.max(0, number(contract.monthlyBaseNetSalary));
+  const normalNet = monthlyBaseNet > 0
+    ? Math.min(monthlyBaseNet, calculatedNormalNet)
+    : calculatedNormalNet;
+  const contractMajorNet = monthlyBaseNet > 0
+    ? Math.max(0, monthlyBaseNet - normalNet)
+    : calculatedContractMajorNet;
   const complementaryNet = complementaryHours * netRate * complementaryFactor;
   const extraMajorNet = extraMajorHours * netRate * majorFactor;
   const salaryBeforeDeduction = normalNet + contractMajorNet + complementaryNet + extraMajorNet +
@@ -213,6 +244,16 @@ export function calculateDeclaration(contract, input) {
   const acquiredRaw = accrualWeeks * 2.5 / 4;
   const cpHours = netRate > 0 ? (cpPaidNet + endingCpNet + noticeCompensationNet) / netRate : 0;
   const normalHoursWithPaidLeave = basis.normalHoursExact + cpHours + regularizationHours;
+  const franceTravailPaidHours = Math.max(0, number(input.franceTravailPaidHours));
+  const referenceNormalHours = franceTravailPaidHours > 0
+    ? Math.max(
+        0,
+        franceTravailPaidHours - basis.majorHoursExact - complementaryHours - extraMajorHours
+      )
+    : 0;
+  const declaredNormalHoursExact = franceTravailPaidHours > 0
+    ? referenceNormalHours
+    : normalHoursWithPaidLeave;
   const declaredDaysWithRegularization = input.isEndContract === "yes"
     ? Math.min(31, Math.ceil(basis.daysExact + regularizationDays - 1e-9))
     : basis.declaredDays;
@@ -221,7 +262,7 @@ export function calculateDeclaration(contract, input) {
     basis,
     declared: {
       days: declaredDaysWithRegularization,
-      normalHours: Math.round(normalHoursWithPaidLeave),
+      normalHours: Math.round(declaredNormalHoursExact),
       complementaryHours: round(complementaryHours, 2),
       majorHours: round(basis.declaredContractMajorHours + extraMajorHours, 2),
       cpDays: round(Math.max(0, number(input.cpDaysDeclared)) + Math.max(0, number(input.endingCpDays)), 2),
@@ -242,7 +283,9 @@ export function calculateDeclaration(contract, input) {
       netSalary: round(netSalary),
       estimatedGross: round(estimatedGross),
       grossForHistory: round(officialGross || estimatedGross),
-      grossSource: officialGross ? "official" : (estimatedGross ? "estimated" : "missing")
+      grossSource: officialGross ? "official" : (estimatedGross ? "estimated" : "missing"),
+      monthlyBaseNet: round(normalNet + contractMajorNet),
+      monthlyBaseNetSource: monthlyBaseNet > 0 ? "contract" : "calculated"
     },
     expenses: {
       maintenance: round(maintenance),
@@ -258,7 +301,10 @@ export function calculateDeclaration(contract, input) {
     )),
     paidLeaveConversion: {
       hours: round(cpHours, 4),
-      normalHoursWithPaidLeave: round(normalHoursWithPaidLeave, 4)
+      normalHoursWithPaidLeave: round(normalHoursWithPaidLeave, 4),
+      declaredNormalHoursExact: round(declaredNormalHoursExact, 4),
+      franceTravailPaidHours: round(franceTravailPaidHours, 4),
+      usedFranceTravailPaidHours: franceTravailPaidHours > 0
     },
     regularizationConversion: {
       hours: round(regularizationHours, 4),
@@ -704,6 +750,7 @@ export function defaultState() {
       grossHourlyRate: 0,
       majorMarkup: 25,
       complementaryMarkup: 0,
+      monthlyBaseNetSalary: 0,
       maintenanceRate: 0,
       mealRate: 4,
       partialMealRate: 0,

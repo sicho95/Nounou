@@ -30,7 +30,7 @@ L’application ne transmet aucune donnée. Elle fonctionne comme un site statiq
 1. Ouvrir l’onglet **Contrat** et saisir les données contractuelles, notamment la date de début, le nombre de semaines, les jours et heures hebdomadaires ainsi que le taux net. Le taux brut indicatif est dérivé automatiquement.
 2. Ouvrir **Mois**, choisir la période. Les jours et heures réellement gardés ainsi que les repas sont préremplis avec le planning prévu au contrat ; les corriger selon les présences réelles.
 3. Cliquer sur **(Re)Calculer**. Créer autant de variantes que nécessaire.
-4. Pour le dernier mois, ouvrir **Fin de contrat ce mois**, choisir **Oui** et contrôler les propositions automatiques. L’écran **Fin** séparé ne demande que la date et le motif et calcule seul les montants du solde.
+4. Pour le dernier mois, ouvrir **Fin de contrat ce mois**, choisir **Oui** et contrôler les propositions automatiques. Il n’existe aucun second écran **Fin** : le bouton **(Re)Calculer** de ce même mois produit tout le récapitulatif.
 5. Reporter les valeurs du bloc « Valeurs à reporter sur Pajemploi » et, le cas échéant, celles du bloc « Fin de contrat ».
 6. Appuyer sur **Confirmer la saisie sur Pajemploi** uniquement pour la variante réellement déclarée. Une fenêtre demande une seconde confirmation explicite.
 7. Après validation, recopier si possible le salaire brut, le CMG et le prélèvement Pajemploi+ officiels.
@@ -42,7 +42,7 @@ Pour préparer une fin de contrat, renseigner aussi dans **Contrat** les coordon
 
 Le stockage courant et IndexedDB contiennent le même état complet. IndexedDB conserve en plus les 30 derniers instantanés afin de mieux résister à une écriture interrompue. L’export JSON est portable et inclut tous les paramètres, l’administratif, la configuration CMG, les préférences, toutes les simulations et toutes les déclarations validées.
 
-L’import recalcule systématiquement les résultats de chaque simulation à partir des données du contrat et des saisies mensuelles. Un jeu d’essai privé peut ainsi conserver séparément ses résultats attendus dans une section `referenceChecks`, sans maquiller les calculs ni publier les données personnelles de la famille.
+L’import recalcule systématiquement les résultats de chaque simulation à partir des données du contrat et des saisies mensuelles. Le jeu de contrôle NounouTop conserve aussi les valeurs historiques déjà vérifiées : salaire mensualisé contractuel, temps payé exact, régularisation et indemnités de fin. Elles ne sont pas écrasées par le bouton **(Re)Calculer**.
 
 Le service worker utilise une stratégie réseau prioritaire avec repli hors ligne. L’application compare le dernier commit de `main` au démarrage, au retour au premier plan et toutes les cinq minutes ; `build.json` sert de repli si l’API publique GitHub est temporairement indisponible. Si le code a changé, le brouillon courant est placé temporairement en mémoire de session, la PWA se recharge, puis le brouillon est restauré. Il n’est donc pas nécessaire de modifier le numéro de version officiel pour diffuser une correction.
 
