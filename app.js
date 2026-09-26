@@ -1,6 +1,7 @@
 import {
   DATA_VERSION,
   calculateCmg,
+  calculateChildAbsence,
   calculateDeclaration,
   calculateEnd,
   calculatePajemploiSettlement,
@@ -16,6 +17,7 @@ import {
   round,
   scheduledDaysInMonth
 } from "./core.mjs";
+import { contractLabel, createContract, ensurePortfolio, switchContract, syncActiveContract } from "./portfolio.mjs";
 
 const STORAGE_KEY = "nounoucalc_v2";
 const DB_NAME = "nounoucalc-cold-storage";
@@ -54,6 +56,14 @@ const monthlyFields = {
   complementaryHours: "complementaryHours",
   extraMajorHours: "extraMajorHours",
   absenceDeductionNet: "absenceDeductionNet",
+  childAbsenceKind: "childAbsenceKind",
+  childAbsenceProof: "childAbsenceProof",
+  childAbsenceStartDate: "childAbsenceStartDate",
+  childAbsenceEndDate: "childAbsenceEndDate",
+  childAbsenceDays: "childAbsenceDays",
+  childAbsenceHours: "childAbsenceHours",
+  plannedDaysInMonth: "plannedDaysInMonth",
+  scheduledHoursInMonth: "scheduledHoursInMonth",
   otherSalaryNet: "otherSalaryNet",
   leaveAdjustmentWeeks: "leaveAdjustmentWeeks",
   cpDaysDeclared: "cpDaysDeclared",
@@ -105,16 +115,18 @@ const monthlyFields = {
   monthNote: "monthNote"
 };
 
-let state = loadState();
+let state = ensurePortfolio(loadState());
 let currentRecord = null;
 let currentSimulationId = null;
 let contractDirty = false;
+let lastAutoChildDays = 0;
+let lastAutoPlannedDays = 0;
 
 function loadState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
     if (parsed?.version === DATA_VERSION) return parsed;
-    if ([2, 3, 4, 5, 6, 7, 8].includes(parsed?.version)) return upgradeV2(parsed);
+    if ([2, 3, 4, 5, 6, 7, 8, 9].includes(parsed?.version)) return upgradeV2(parsed);
   } catch (error) {
     console.warn("Sauvegarde illisible", error);
   }
@@ -184,7 +196,7 @@ async function hydrateFromColdStorage() {
       return;
     }
     if ((coldState.updatedAt || "") > (state.updatedAt || "")) {
-      state = coldState.version === DATA_VERSION ? coldState : upgradeV2(coldState);
+      state = ensurePortfolio(coldState.version === DATA_VERSION ? coldState : upgradeV2(coldState));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       fillContract();
       renderHistory();
@@ -278,6 +290,7 @@ function migrateLegacy() {
 }
 
 function saveState(snapshot = true) {
+  syncActiveContract(state);
   state.version = DATA_VERSION;
   state.updatedAt = new Date().toISOString();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -354,6 +367,101 @@ function readValues(ids) {
 
 function setMonthlyValues(input) {
   for (const [key, id] of Object.entries(monthlyFields)) setValue(id, input?.[key]);
+  updateChildAbsenceInfo();
+}
+
+function renderContractPicker() {
+  const picker = $("activeContractSelect");
+  if (!picker) return;
+  picker.replaceChildren();
+  for (const [id, snapshot] of Object.entries(state.contractWorkspaces)) {
+    const option = new Option(contractLabel(id === state.activeContractId ? state : snapshot), id);
+    picker.add(option);
+  }
+  picker.value = state.activeContractId;
+}
+
+function saveMonthlyDraftBeforeSwitch() {
+  if (!$("period").value) return true;
+  const input = monthlyInput();
+  const baseline = { ...defaultMonthly(input.period), ...(currentRecord?.input || {}) };
+  if (Object.keys(monthlyFields).every(key => String(input[key] ?? "") === String(baseline[key] ?? ""))) return true;
+  return calculateAndSave();
+}
+
+function changeContract(id) {
+  if (id === state.activeContractId) return;
+  if (contractDirty) saveContract(false, false);
+  if (!saveMonthlyDraftBeforeSwitch()) {
+    renderContractPicker();
+    return;
+  }
+  switchContract(state, id);
+  saveState();
+  currentRecord = null;
+  currentSimulationId = null;
+  fillContract();
+  renderHistory();
+  loadMonth(currentMonth());
+  toast(`Contrat affiché : ${state.admin.employeeName || "nouvelle nounou"}.`);
+}
+
+function newContract() {
+  if (contractDirty) saveContract(false, false);
+  if (!saveMonthlyDraftBeforeSwitch()) return;
+  createContract(state, makeId());
+  saveState();
+  currentRecord = null;
+  currentSimulationId = null;
+  fillContract();
+  renderHistory();
+  loadMonth(currentMonth());
+  toast("Nouveau contrat créé ; l’ancien reste dans le sélecteur.");
+}
+
+function updateChildAbsenceInfo() {
+  const target = $("childAbsenceInfo");
+  if (!target || !$("period")?.value) return;
+  const input = monthlyInput();
+  const result = calculateChildAbsence(state.contract, input, officialDeclarations());
+  target.textContent = input.childAbsenceKind === "none" || !result.requestedDays
+    ? "Aucune déduction de maladie calculée pour ce mois."
+    : `${result.deductedDays} jour(s), ${result.deductedHours} h déductibles · ${money(result.deductionNet)} de salaire retenu. ` +
+      (result.kind === "short" ? `${result.remainingShortDays} jour(s) disponibles avant ce mois sur l’année anniversaire. ` : "") +
+      result.warning;
+}
+
+function updateChildAbsenceDays() {
+  const nextDays = Math.max(0, number($("childAbsenceDays").value));
+  const weeklyHours = number(state.contract.normalHoursPerWeek) + number(state.contract.majorHoursPerWeek);
+  const usualHours = number(state.contract.daysPerWeek) > 0 ? weeklyHours / number(state.contract.daysPerWeek) : 0;
+  if (Math.abs(number($("childAbsenceHours").value) - lastAutoChildDays * usualHours) < 0.01) {
+    setValue("childAbsenceHours", round(nextDays * usualHours, 2));
+  }
+  const scheduled = number($("plannedDaysInMonth").value, scheduledDaysInMonth(state.contract, $("period").value));
+  if (Math.abs(number($("actualDays").value) - Math.max(0, scheduled - lastAutoChildDays)) < 0.01) {
+    setValue("actualDays", Math.max(0, scheduled - nextDays));
+    updateActualActivityDefaults();
+  }
+  lastAutoChildDays = nextDays;
+  updateChildAbsenceInfo();
+  updateAutomaticLeaveInfo();
+}
+
+function updatePlannedDays() {
+  const nextDays = Math.max(0, number($("plannedDaysInMonth").value));
+  const weeklyHours = number(state.contract.normalHoursPerWeek) + number(state.contract.majorHoursPerWeek);
+  const usualHours = number(state.contract.daysPerWeek) > 0 ? weeklyHours / number(state.contract.daysPerWeek) : 0;
+  if (Math.abs(number($("scheduledHoursInMonth").value) - lastAutoPlannedDays * usualHours) < 0.01) {
+    setValue("scheduledHoursInMonth", round(nextDays * usualHours, 2));
+  }
+  if (Math.abs(number($("actualDays").value) - Math.max(0, lastAutoPlannedDays - lastAutoChildDays)) < 0.01) {
+    setValue("actualDays", Math.max(0, nextDays - lastAutoChildDays));
+    updateActualActivityDefaults();
+  }
+  lastAutoPlannedDays = nextDays;
+  updateChildAbsenceInfo();
+  updateAutomaticLeaveInfo();
 }
 
 function normalizeMonthlyActivity(input, contract = state.contract) {
@@ -403,6 +511,7 @@ function fillContract() {
   refreshEstimatedGrossRate();
   updateContractPreview();
   renderCmgHistory();
+  renderContractPicker();
 }
 
 function saveContract(showMessage = true, refreshPreview = true) {
@@ -420,6 +529,7 @@ function saveContract(showMessage = true, refreshPreview = true) {
   state.cmgProfiles = history.sort((a, b) => a.effectivePeriod.localeCompare(b.effectivePeriod));
   contractDirty = false;
   saveState();
+  renderContractPicker();
   updateContractPreview();
   renderCmgHistory();
   updatePeriodHints();
@@ -463,6 +573,14 @@ function defaultMonthly(period) {
     complementaryHours: 0,
     extraMajorHours: 0,
     absenceDeductionNet: 0,
+    childAbsenceKind: "none",
+    childAbsenceProof: "no",
+    childAbsenceStartDate: "",
+    childAbsenceEndDate: "",
+    childAbsenceDays: 0,
+    childAbsenceHours: 0,
+    plannedDaysInMonth: proposedDays,
+    scheduledHoursInMonth: round(proposedHours, 2),
     otherSalaryNet: 0,
     cpDaysDeclared: 0,
     cpPaidNet: 0,
@@ -544,6 +662,8 @@ function loadMonth(period, simulationId = "") {
   const input = normalizeMonthlyActivity(existing?.input || defaultMonthly(period));
   fillCpReferenceOptions(period, input.cpReferenceKey);
   setMonthlyValues({ ...defaultMonthly(period), ...input });
+  lastAutoChildDays = number(input.childAbsenceDays);
+  lastAutoPlannedDays = number(input.plannedDaysInMonth, scheduledDaysInMonth(state.contract, period));
   const simulationCount = bucket?.simulations?.length || 0;
   $("monthStatus").textContent = existing && existing.id === bucket?.officialId
     ? "Validée sur Pajemploi"
@@ -575,6 +695,8 @@ function newSimulation() {
   } : defaultMonthly(period);
   fillCpReferenceOptions(period, input.cpReferenceKey);
   setMonthlyValues(input);
+  lastAutoChildDays = number(input.childAbsenceDays);
+  lastAutoPlannedDays = number(input.plannedDaysInMonth, scheduledDaysInMonth(state.contract, period));
   currentRecord = null;
   currentSimulationId = null;
   $("monthStatus").textContent = "Variante non enregistrée";
@@ -585,7 +707,7 @@ function newSimulation() {
 }
 
 function calculateRecordResults(input) {
-  const results = calculateDeclaration(state.contract, input);
+  const results = calculateDeclaration(state.contract, input, officialDeclarations());
   results.cmg = calculateCmg(cmgProfileForPeriod(input.period), results);
   results.cmg.officialCmg = input.officialCmg === "" || input.officialCmg == null
     ? null
@@ -729,12 +851,31 @@ function calculateAndSave() {
   saveContract(false, false);
   if ($("isEndContract").value === "yes") calculateMonthlyEndSuggestions();
   const input = monthlyInput();
-  if (!input.period) return alert("Choisissez une période.");
+  if (!input.period) { alert("Choisissez une période."); return false; }
   if (state.contract.startDate && `${input.period}-01` < state.contract.startDate.slice(0, 7) + "-01") {
-    return alert("La période choisie est antérieure au début du contrat.");
+    alert("La période choisie est antérieure au début du contrat."); return false;
   }
   if (number(state.contract.weeksPerYear) > 52 || number(state.contract.weeksPerYear) === 47) {
-    return alert("Choisissez 52 semaines ou 46 semaines et moins, conformément aux catégories conventionnelles.");
+    alert("Choisissez 52 semaines ou 46 semaines et moins, conformément aux catégories conventionnelles."); return false;
+  }
+  if (input.childAbsenceKind !== "none" && number(input.childAbsenceDays) > 0 &&
+    number(input.childAbsenceHours) <= 0) {
+    alert("Renseignez les heures d’accueil prévues pendant l’absence de l’enfant."); return false;
+  }
+  if (["short", "long"].includes(input.childAbsenceKind) && input.childAbsenceProof === "yes" &&
+    (!input.childAbsenceStartDate || !input.childAbsenceEndDate ||
+      input.childAbsenceEndDate < input.childAbsenceStartDate)) {
+    alert("Renseignez des dates valides pour l’absence médicalement justifiée."); return false;
+  }
+  if (["short", "long"].includes(input.childAbsenceKind) && input.childAbsenceProof === "yes" &&
+    !state.contract.startDate) {
+    alert("Renseignez d’abord la date de début du contrat pour appliquer les plafonds d’absence."); return false;
+  }
+  if (["short", "long"].includes(input.childAbsenceKind) && input.childAbsenceProof === "yes" &&
+    (number(input.plannedDaysInMonth) <= 0 || number(input.scheduledHoursInMonth) <= 0 ||
+      number(input.childAbsenceDays) > number(input.plannedDaysInMonth) ||
+      number(input.childAbsenceHours) > number(input.scheduledHoursInMonth))) {
+    alert("Vérifiez les jours et heures d’accueil prévus : l’absence ne peut pas dépasser le planning du mois."); return false;
   }
   const results = calculateRecordResults(input);
   const bucket = monthBucket(input.period, true);
@@ -762,6 +903,7 @@ function calculateAndSave() {
   if (officialWasOpen) toast("La déclaration Pajemploi confirmée est restée intacte. Une nouvelle simulation a été créée.");
   $("results").classList.remove("hidden");
   $("results").scrollIntoView({ behavior: "smooth", block: "start" });
+  return true;
 }
 
 function row(label, value, detail = "") {
@@ -793,6 +935,10 @@ function renderResults(record) {
     }
   }
   $("outExactNormalHours").textContent = normalHourDetails.join(" + ");
+  if (results.childAbsence?.deductionNet) {
+    $("outExactNormalHours").textContent +=
+      ` − ${round(results.childAbsence.deductionNet / Math.max(0.01, number(state.contract.netHourlyRate)), 2)} h équivalentes déduites`;
+  }
   $("outComplementaryHours").textContent = `${declared.complementaryHours} h`;
   $("outMajorHours").textContent = `${declared.majorHours} h`;
   $("outMajorBreakdown").textContent = `${basis.declaredContractMajorHours} h mensualisées + ${round(number(input.extraMajorHours), 2)} h en plus`;
@@ -891,7 +1037,9 @@ function renderResults(record) {
     salary.precariousnessNet ? row("Prime de précarité", salary.precariousnessNet) : "",
     salary.regularizationNet ? row("Régularisation de salaire", salary.regularizationNet) : "",
     salary.otherSalaryNet ? row("Autre élément de salaire", salary.otherSalaryNet) : "",
-    salary.absenceDeductionNet ? row("Déduction d’absence", -salary.absenceDeductionNet) : "",
+    salary.childAbsenceDeductionNet ? row("Absence médicalement justifiée de l’enfant", -salary.childAbsenceDeductionNet,
+      `${results.childAbsence.deductedDays} j / ${results.childAbsence.deductedHours} h`) : "",
+    number(input.absenceDeductionNet) ? row("Autre déduction exceptionnelle", -number(input.absenceDeductionNet)) : "",
     row("Salaire net à déclarer", salary.netSalary)
   ].join("");
 
@@ -1164,7 +1312,9 @@ function printEmployerDossier() {
       <td>${unpaid}</td>
       <td>${money(gross)}${officialGross ? "" : " <em>(estimé)</em>"}</td>
       <td>${number(record.input.bonusGross) ? `${money(record.input.bonusGross)}<br>${text(record.input.bonusType)}` : "—"}</td>
-      <td>${text(record.input.monthNote)}</td>
+      <td>${record.results.childAbsence?.requestedDays
+        ? `Enfant absent ${record.results.childAbsence.requestedDays} j, ${record.results.childAbsence.deductedDays} j déduits (${money(record.results.childAbsence.deductionNet)})<br>`
+        : ""}${text(record.input.monthNote)}</td>
     </tr>`;
   }).join("");
   const absenceRows = records
@@ -1293,7 +1443,7 @@ function exportData() {
     exportedAt: new Date().toISOString(),
     includes: [
       "administratif", "contrat", "configuration_cmg", "simulations",
-      "declarations_pajemploi_validees", "conges", "montants_officiels", "preferences"
+      "declarations_pajemploi_validees", "conges", "montants_officiels", "preferences", "tous_les_contrats"
     ],
     state
   };
@@ -1363,13 +1513,13 @@ async function importData(event) {
   try {
     const parsed = JSON.parse(await file.text());
     const importedState = parsed?.format === "nounoucalc-complete-backup" ? parsed.state : parsed;
-    if (![2, 3, 4, 5, 6, 7, 8, DATA_VERSION].includes(importedState?.version) || !importedState.contract || !importedState.declarations) {
+    if (![2, 3, 4, 5, 6, 7, 8, 9, DATA_VERSION].includes(importedState?.version) || !importedState.contract || !importedState.declarations) {
       throw new Error("Format non reconnu");
     }
     if (!confirm("Remplacer les données locales par cette sauvegarde ?")) return;
-    state = recalculateImportedState(
+    state = ensurePortfolio(recalculateImportedState(
       importedState.version === DATA_VERSION ? importedState : upgradeV2(importedState)
-    );
+    ));
     saveState();
     applyTheme(state.preferences?.theme || "auto");
     fillContract();
@@ -1397,7 +1547,7 @@ async function clearColdStorage() {
 }
 
 async function resetData() {
-  if (!confirm("Effacer définitivement le contrat et tout l’historique de ce navigateur ?")) return;
+  if (!confirm("Effacer définitivement tous les contrats et tous les historiques de ce navigateur ?")) return;
   await clearColdStorage();
   state = defaultState();
   localStorage.removeItem(STORAGE_KEY);
@@ -1448,6 +1598,8 @@ function restorePendingDraft() {
     showTab(draft.tab || "monthly");
     fillCpReferenceOptions(draft.period, draft.input.cpReferenceKey);
     setMonthlyValues({ ...defaultMonthly(draft.period), ...draft.input });
+    lastAutoChildDays = number(draft.input.childAbsenceDays);
+    lastAutoPlannedDays = number(draft.input.plannedDaysInMonth, scheduledDaysInMonth(state.contract, draft.period));
     currentSimulationId = draft.simulationId || null;
     currentRecord = currentSimulationId
       ? monthBucket(draft.period)?.simulations?.find(item => item.id === currentSimulationId) || null
@@ -1528,6 +1680,8 @@ async function initialize() {
 }
 
 document.querySelectorAll(".tab").forEach(tab => tab.addEventListener("click", () => showTab(tab.dataset.tab)));
+$("activeContractSelect").addEventListener("change", event => changeContract(event.target.value));
+$("newContractButton").addEventListener("click", newContract);
 contractIds.forEach(id => $(id).addEventListener("input", () => {
   contractDirty = true;
   if (id === "netHourlyRate") refreshEstimatedGrossRate();
@@ -1550,6 +1704,19 @@ $("endDateMonthly").addEventListener("change", calculateMonthlyEndSuggestions);
 $("endReasonMonthly").addEventListener("change", calculateMonthlyEndSuggestions);
 $("leaveAdjustmentWeeks").addEventListener("input", updateAutomaticLeaveInfo);
 $("actualDays").addEventListener("input", updateActualActivityDefaults);
+$("childAbsenceDays").addEventListener("input", updateChildAbsenceDays);
+$("plannedDaysInMonth").addEventListener("input", updatePlannedDays);
+$("childAbsenceKind").addEventListener("change", () => {
+  if ($("childAbsenceKind").value === "none") {
+    setValue("childAbsenceDays", 0);
+    updateChildAbsenceDays();
+    setValue("childAbsenceStartDate", "");
+    setValue("childAbsenceEndDate", "");
+  }
+});
+for (const id of ["childAbsenceKind", "childAbsenceProof", "childAbsenceStartDate", "childAbsenceEndDate", "childAbsenceHours", "scheduledHoursInMonth"]) {
+  $(id).addEventListener("input", updateChildAbsenceInfo);
+}
 $("saveContractButton").addEventListener("click", () => saveContract(true));
 $("calculateButton").addEventListener("click", calculateAndSave);
 $("confirmOfficialButton").addEventListener("click", () => {

@@ -9,7 +9,9 @@ NounouCalc est un assistant local pour préparer les déclarations mensuelles Pa
 - affiche la base exacte utilisée pour le salaire et la valeur entière à saisir ;
 - explique dans une aide plein écran les règles d’arrondi et de calcul, avec un lien officiel sous chaque règle ;
 - détaille le salaire net, les indemnités d’entretien et les repas ;
+- calcule une absence médicalement justifiée de l’enfant selon le planning du mois et les plafonds conventionnels, tout en conservant le salaire pour une absence imprévue sans justificatif ;
 - enregistre chaque déclaration mensuelle dans le navigateur ;
+- conserve plusieurs contrats de nounou séparés, chacun avec ses simulations et son historique ;
 - conserve plusieurs simulations par mois et distingue clairement la simulation de la déclaration confirmée sur Pajemploi ;
 - calcule automatiquement les congés acquis depuis la date de début du contrat, même si aucun mois antérieur n’a encore été enregistré ;
 - déduit les congés déjà rémunérés dans les déclarations Pajemploi confirmées et solde d’abord les droits les plus anciens ;
@@ -28,7 +30,7 @@ L’application ne transmet aucune donnée. Elle fonctionne comme un site statiq
 ## Utilisation
 
 1. Ouvrir l’onglet **Contrat** et saisir les données contractuelles, notamment la date de début, le nombre de semaines, les jours et heures hebdomadaires ainsi que le taux net. Le taux brut indicatif est dérivé automatiquement.
-2. Ouvrir **Mois**, choisir la période. Les jours et heures réellement gardés ainsi que les repas sont préremplis avec le planning prévu au contrat ; les corriger selon les présences réelles.
+2. Ouvrir **Mois**, choisir la période. Les jours et heures réellement gardés ainsi que les repas sont préremplis avec le planning prévu au contrat ; les corriger selon les présences réelles. Si l’enfant est malade, renseigner le bloc **Absence de l’enfant** et vérifier les jours/heures qui étaient réellement prévus dans le mois.
 3. Cliquer sur **(Re)Calculer**. Créer autant de variantes que nécessaire.
 4. Pour le dernier mois, ouvrir **Fin de contrat ce mois**, choisir **Oui** et contrôler les propositions automatiques. Il n’existe aucun second écran **Fin** : le bouton **(Re)Calculer** de ce même mois produit tout le récapitulatif.
 5. Reporter les valeurs du bloc « Valeurs à reporter sur Pajemploi » et, le cas échéant, celles du bloc « Fin de contrat ».
@@ -36,13 +38,15 @@ L’application ne transmet aucune donnée. Elle fonctionne comme un site statiq
 7. Après validation, recopier si possible le salaire brut, le CMG et le prélèvement Pajemploi+ officiels.
 8. Exporter régulièrement la sauvegarde JSON depuis l’onglet **Données**.
 
+Pour embaucher une autre nounou, choisir **+ Nouveau contrat** dans l’onglet **Contrat**. Le précédent contrat et ses déclarations restent accessibles dans le sélecteur. Faire un export JSON avant la première utilisation de cette fonction est conseillé.
+
 Pour préparer une fin de contrat, renseigner aussi dans **Contrat** les coordonnées, dates de naissance, numéro de Sécurité sociale, nationalité et caisse de retraite. Pour chaque mois concerné, compléter les heures/jours non payés, l’éventuel arrêt ou suspension, la prime brute et le salaire brut officiel. Le dossier imprimé dans **Historique** rassemble alors les rubriques nécessaires à la saisie France Travail.
 
 ## Sauvegarde, restauration et mises à jour
 
 Le stockage courant et IndexedDB contiennent le même état complet. IndexedDB conserve en plus les 30 derniers instantanés afin de mieux résister à une écriture interrompue. L’export JSON est portable et inclut tous les paramètres, l’administratif, la configuration CMG, les préférences, toutes les simulations et toutes les déclarations validées.
 
-L’import recalcule les brouillons et simulations à partir des données du contrat et des saisies mensuelles. Une déclaration déjà confirmée sur Pajemploi reste figée : une modification ultérieure du contrat, des ressources CAF ou du moteur ne réécrit jamais son salaire, ses congés ni son reste à charge historiques. Aucun contrat, nom ou montant de référence n’est reconnu ni injecté par le moteur. Les valeurs NounouTop et Pajemploi fournies pour mai, juin et juillet 2026 sont conservées uniquement dans les tests automatisés : elles servent à détecter une régression, jamais à modifier les données réelles de l’utilisateur.
+L’import recalcule les brouillons et simulations du contrat actif à partir des données du contrat et des saisies mensuelles. Une déclaration déjà confirmée sur Pajemploi reste figée : une modification ultérieure du contrat, des ressources CAF ou du moteur ne réécrit jamais son salaire, ses congés ni son reste à charge historiques. Les autres contrats sont conservés tels quels. Aucun contrat, nom ou montant de référence n’est reconnu ni injecté par le moteur. Les valeurs NounouTop et Pajemploi fournies pour mai, juin et juillet 2026 sont conservées uniquement dans les tests automatisés : elles servent à détecter une régression, jamais à modifier les données réelles de l’utilisateur.
 
 Le service worker utilise une stratégie réseau prioritaire avec repli hors ligne. L’application compare le dernier commit de `main` au démarrage, au retour au premier plan et toutes les cinq minutes ; `build.json` sert de repli si l’API publique GitHub est temporairement indisponible. Si le code a changé, le brouillon courant est placé temporairement en mémoire de session, la PWA se recharge, puis le brouillon est restauré. Il n’est donc pas nécessaire de modifier le numéro de version officiel pour diffuser une correction.
 

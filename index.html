@@ -100,6 +100,34 @@
         <p id="automaticLeaveInfo" class="auto-info"></p>
       </details>
 
+      <details class="card collapsible" id="childAbsenceCard">
+        <summary>Absence de l’enfant · maladie</summary>
+        <div class="collapsible-body">
+          <p class="hint">Sans justificatif, une absence imprévue reste rémunérée. Avec certificat médical ou hospitalisation, l’application calcule la déduction et suit le plafond sur l’année anniversaire du contrat.</p>
+          <div class="form-grid two compact-grid">
+            <label>Situation
+              <select id="childAbsenceKind">
+                <option value="none">Aucune</option>
+                <option value="short">Maladie courte de l’enfant</option>
+                <option value="long">Maladie / hospitalisation continue</option>
+                <option value="other">Autre absence imprévue · salaire maintenu</option>
+              </select>
+            </label>
+            <label>Justificatif reçu
+              <select id="childAbsenceProof"><option value="no">Non</option><option value="yes">Oui</option></select>
+            </label>
+            <label>Début de l’absence<input id="childAbsenceStartDate" type="date"></label>
+            <label>Fin de l’absence<input id="childAbsenceEndDate" type="date"></label>
+            <label>Jours d’accueil prévus mais non assurés<input id="childAbsenceDays" type="number" min="0" step="0.5" value="0"></label>
+            <label>Heures d’accueil prévues mais non assurées<input id="childAbsenceHours" type="number" min="0" step="0.25" value="0"></label>
+            <label>Jours d’accueil prévus ce mois<input id="plannedDaysInMonth" type="number" min="0" step="0.5"></label>
+            <label>Heures d’accueil prévues ce mois<input id="scheduledHoursInMonth" type="number" min="0" step="0.25"></label>
+          </div>
+          <p id="childAbsenceInfo" class="auto-info" aria-live="polite"></p>
+          <p class="hint">Pour un planning irrégulier, ajustez les heures prévues et absentes. Les jours réellement gardés, repas et heures réelles restent modifiables séparément.</p>
+        </div>
+      </details>
+
       <details class="card collapsible">
         <summary>Éléments variables de salaire</summary>
         <div class="form-grid two compact-grid collapsible-body">
@@ -111,9 +139,9 @@
             <input id="extraMajorHours" type="number" min="0" step="0.25" value="0">
             <small>Heures réellement faites au-delà de 45 h, hors base mensualisée.</small>
           </label>
-          <label>Déduction d’absence nette
+          <label>Autre déduction exceptionnelle nette
             <input id="absenceDeductionNet" type="number" min="0" step="0.01" value="0">
-            <small>À calculer selon la déduction conventionnelle.</small>
+            <small>Facultatif ; la maladie de l’enfant est calculée automatiquement ci-dessus.</small>
           </label>
           <label>Autre élément de salaire net
             <input id="otherSalaryNet" type="number" step="0.01" value="0">
@@ -475,6 +503,16 @@
       </div>
 
       <div class="card">
+        <div class="form-grid two compact-grid contract-picker">
+          <label>Contrat affiché
+            <select id="activeContractSelect" aria-label="Choisir un contrat"></select>
+          </label>
+          <button id="newContractButton" class="button ghost" type="button">+ Nouveau contrat</button>
+        </div>
+        <p class="hint">Chaque nounou conserve son contrat, ses simulations et ses déclarations validées. L’export JSON contient tous les contrats.</p>
+      </div>
+
+      <div class="card">
         <h3>Contrat</h3>
         <div class="form-grid two">
           <label>Date de début du contrat
@@ -808,9 +846,11 @@
           <span class="calculation-rule-number">9</span>
           <div>
             <h3>Absence non rémunérée</h3>
-            <p>La déduction ne se fait pas avec une simple valeur journalière moyenne. Elle compare les heures d’absence aux heures qui auraient réellement dû être effectuées dans le mois.</p>
-            <div class="formula-chip">Salaire mensualisé − (salaire mensualisé × heures d’absence ÷ heures prévues dans le mois)</div>
-            <a href="https://www.urssaf.fr/accueil/particulier/particulier-employeur/embaucher-un-salarie/contrat-travail-salarie-domicile.html" target="_blank" rel="noopener noreferrer">Voir la formule officielle Urssaf <span aria-hidden="true">↗</span></a>
+            <p>Si l’enfant est malade, une absence imprévue reste payée, sauf justificatif médical remis à la nounou. La déduction est limitée à 5 jours courts ou à 14 jours calendaires consécutifs sur l’année anniversaire du contrat.</p>
+            <p>Pour 46 semaines ou moins, on rapporte les jours déductibles aux jours réellement prévus ce mois. Pour 52 semaines, on utilise les heures prévues.</p>
+            <div class="formula-chip">Déduction = salaire mensualisé × jours déductibles ÷ jours prévus (≤ 46 semaines), ou × heures déductibles ÷ heures prévues (52 semaines)</div>
+            <a href="https://www.legifrance.gouv.fr/conv_coll/article/KALIARTI000043942278" target="_blank" rel="noopener noreferrer">Lire l’article 105 de la convention <span aria-hidden="true">↗</span></a>
+            <a href="https://www.urssaf.fr/accueil/particulier/particulier-employeur/gerer-les-absences/absences-salaries-domicile.html" target="_blank" rel="noopener noreferrer">Voir les exemples officiels Urssaf <span aria-hidden="true">↗</span></a>
           </div>
         </article>
 

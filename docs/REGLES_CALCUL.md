@@ -1,6 +1,6 @@
 # Règles de calcul et décisions de conception
 
-Mise à jour : 25 juillet 2026.
+Mise à jour : 26 septembre 2026.
 
 ## 1. Mensualisation
 
@@ -61,7 +61,9 @@ Le minimum de référence pour neuf heures est de 3,80 € en 2025, 3,83 € de 
 
 Les repas n’ont pas de tarif légal unique : les tarifs des repas complets et partiels sont définis au contrat. Le montant mensuel est calculé automatiquement en multipliant chaque quantité réelle par son tarif. Aucun repas n’est compté lorsque le parent fournit le repas.
 
-En cas d’absence non rémunérée, la déclaration peut demander des valeurs réelles spécifiques. NounouCalc laisse alors la déduction nette à saisir et affiche un avertissement ; le planning quotidien complet n’étant pas connu, ce fait ne peut pas être déduit de la seule mensualisation.
+En cas d’absence médicalement justifiée de l’enfant, NounouCalc calcule automatiquement la déduction à partir des jours ou heures réellement prévus ce mois-là, renseignés dans « Absence de l’enfant ». Sans certificat médical ou bulletin d’hospitalisation, l’absence imprévue reste rémunérée. Les absences courtes déductibles sont plafonnées à 5 jours sur une période de 12 mois commençant à la date d’embauche ou à son anniversaire ; les absences continues à 14 jours calendaires. Les déclarations Pajemploi confirmées alimentent le compteur, pas les simples simulations.
+
+Pour un contrat sur 46 semaines ou moins, la déduction est `salaire mensualisé × jours déductibles ÷ jours qui auraient dû être travaillés dans le mois`. Pour 52 semaines, elle est `salaire mensualisé × heures déductibles ÷ heures qui auraient dû être travaillées dans le mois`. L’application calcule les heures normales à déclarer à partir du salaire dû et propose les jours réellement accueillis lorsqu’une déduction s’applique. En l’absence de calendrier quotidien, les jours et heures prévus restent modifiables. Les absences longues et les plannings irréguliers doivent être vérifiés sur le récapitulatif Pajemploi.
 
 ## 4. Congés payés
 
@@ -155,6 +157,8 @@ La fin de contrat est intégrée à la déclaration du dernier mois. Les champs 
 
 La régularisation de salaire est ajoutée au salaire net déclaré du dernier mois. L’indemnité compensatrice de congés, le préavis, la précarité et l’indemnité de rupture restent dans leurs cases dédiées de la rubrique « Indemnités de fin de contrat » ; elles sont ajoutées au total à verser sans gonfler la case « salaire net du mois ».
 
+Chaque assistante maternelle dispose désormais de son propre espace de contrat, de simulations et de déclarations confirmées. Le changement de contrat n’efface pas le précédent ; l’export JSON contient tous les espaces. Le nom des employeurs, l’enfant et l’historique des ressources CMG sont proposés pour le nouveau contrat, mais les données de la nouvelle salariée et ses déclarations repartent à zéro.
+
 Il n’existe qu’un seul parcours de fin de contrat : dans l’onglet « Mois », l’employeur indique que la déclaration courante est la dernière, choisit la date et le motif, puis appuie sur « (Re)Calculer ». La régularisation, les congés, la précarité éventuelle et l’indemnité de rupture sont alors intégrés directement au récapitulatif Pajemploi du mois. Il n’y a pas de second calcul à lancer dans un autre onglet.
 
 ## 6. Sources officielles
@@ -167,6 +171,8 @@ Il n’existe qu’un seul parcours de fin de contrat : dans l’onglet « Mois 
   https://www.urssaf.fr/accueil/particulier/particulier-employeur/gerer-les-absences/gestion-conges-payes.html
 - Urssaf, « Absences du salarié »
   https://www.urssaf.fr/accueil/particulier/particulier-employeur/gerer-les-absences/absences-salaries-domicile.html
+- Convention collective, article 105 « Absences de l’enfant »
+  https://www.legifrance.gouv.fr/conv_coll/article/KALIARTI000043942278
 - Convention collective IDCC 3239, articles 96, 102, 108 à 111 et 123  
   https://www.legifrance.gouv.fr/conv_coll/id/KALITEXT000043941642/
 - Service-Public, « Congés payés d’une assistante maternelle »  

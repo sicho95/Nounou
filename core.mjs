@@ -1,4 +1,4 @@
-export const DATA_VERSION = 9;
+export const DATA_VERSION = 10;
 
 export function number(value, fallback = 0) {
   const parsed = Number.parseFloat(value);
@@ -242,6 +242,101 @@ export function scheduledDaysInMonth(contract, period, endDate = "") {
   return total;
 }
 
+function anniversaryYear(startDate, dateValue) {
+  if (!startDate || !dateValue) return "";
+  const start = isoDate(startDate);
+  const date = isoDate(dateValue);
+  if (!start || !date) return "";
+  let year = date.getFullYear();
+  const anniversary = new Date(year, start.getMonth(), start.getDate(), 12);
+  if (date < anniversary) year -= 1;
+  return `${year}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+}
+
+function inclusiveCalendarDays(startDate, endDate) {
+  const start = isoDate(startDate);
+  const end = isoDate(endDate);
+  return start && end && end >= start ? Math.round((end - start) / 86400000) + 1 : 0;
+}
+
+function scheduledDaysBetween(contract, startValue, endValue) {
+  const start = isoDate(startValue);
+  const end = isoDate(endValue);
+  if (!start || !end || end < start) return 0;
+  const allowed = scheduledWeekdays(contract);
+  let count = 0;
+  for (const date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+    if (allowed.has(date.getDay())) count += 1;
+  }
+  return count;
+}
+
+export function calculateChildAbsence(contract, input, priorRecords = {}) {
+  const kind = input.childAbsenceKind || "none";
+  const requestedDays = Math.max(0, number(input.childAbsenceDays));
+  const requestedHours = Math.max(0, number(input.childAbsenceHours));
+  const fullScheduledDays = Math.max(0, number(input.plannedDaysInMonth, scheduledDaysInMonth(contract, input.period)));
+  const usualDailyHours = number(contract.daysPerWeek) > 0
+    ? (number(contract.normalHoursPerWeek) + number(contract.majorHoursPerWeek)) / number(contract.daysPerWeek)
+    : 0;
+  const scheduledHours = Math.max(0, number(input.scheduledHoursInMonth, fullScheduledDays * usualDailyHours));
+  const startDate = input.childAbsenceStartDate || `${input.period}-01`;
+  const anniversary = anniversaryYear(contract.startDate, startDate);
+  const priorShortDays = Object.values(priorRecords).reduce((sum, record) => {
+    const earlier = record?.input;
+    if (!earlier || earlier.period >= input.period || earlier.childAbsenceKind !== "short" || earlier.childAbsenceProof !== "yes") return sum;
+    const earlierStart = earlier.childAbsenceStartDate || `${earlier.period}-01`;
+    if (anniversaryYear(contract.startDate, earlierStart) !== anniversary) return sum;
+    return sum + Math.max(0, number(record.results?.childAbsence?.deductedDays));
+  }, 0);
+  const calendarDays = inclusiveCalendarDays(startDate, input.childAbsenceEndDate || startDate);
+  const documented = input.childAbsenceProof === "yes";
+  const eligible = documented && (kind === "short" || kind === "long") && requestedDays > 0 && requestedHours > 0;
+  const remainingShortDays = Math.max(0, 5 - priorShortDays);
+  const endDate = input.childAbsenceEndDate || startDate;
+  const firstFourteenEnd = isoDate(startDate);
+  if (firstFourteenEnd) firstFourteenEnd.setDate(firstFourteenEnd.getDate() + 13);
+  const firstFourteenDate = firstFourteenEnd
+    ? `${firstFourteenEnd.getFullYear()}-${String(firstFourteenEnd.getMonth() + 1).padStart(2, "0")}-${String(firstFourteenEnd.getDate()).padStart(2, "0")}`
+    : endDate;
+  const [periodYear, periodMonth] = (input.period || "").split("-").map(Number);
+  const periodStart = `${input.period}-01`;
+  const periodEnd = Number.isFinite(periodYear) && Number.isFinite(periodMonth)
+    ? `${input.period}-${String(new Date(periodYear, periodMonth, 0).getDate()).padStart(2, "0")}`
+    : endDate;
+  const eligibleStart = startDate > periodStart ? startDate : periodStart;
+  const eligibleEnd = [endDate, firstFourteenDate, periodEnd].sort()[0];
+  const scheduledInFirstFourteen = scheduledDaysBetween(contract, eligibleStart, eligibleEnd);
+  const deductibleDays = eligible
+    ? kind === "short" ? Math.min(requestedDays, remainingShortDays) : Math.min(requestedDays, scheduledInFirstFourteen)
+    : 0;
+  const deductibleHours = eligible && requestedDays > 0
+    ? Math.min(scheduledHours, requestedHours * deductibleDays / requestedDays)
+    : 0;
+  const base = Math.max(0, number(contract.monthlyBaseNetSalary)) ||
+    contractBasis(contract).normalHoursExact * Math.max(0, number(contract.netHourlyRate)) +
+    contractBasis(contract).majorHoursExact * Math.max(0, number(contract.netHourlyRate)) *
+      (1 + Math.max(0, number(contract.majorMarkup)) / 100);
+  const deductionNet = number(contract.weeksPerYear) <= 46 && fullScheduledDays > 0
+    ? round(base * deductibleDays / fullScheduledDays)
+    : scheduledHours > 0 ? round(base * deductibleHours / scheduledHours) : 0;
+  const warning = !requestedDays && !requestedHours ? "" : !documented
+    ? "Sans certificat médical ou bulletin d’hospitalisation, le salaire mensualisé reste dû."
+    : kind === "short" && requestedDays > remainingShortDays
+      ? `Plafond de 5 jours atteint : ${round(requestedDays - deductibleDays, 2)} jour(s) restent rémunérés.`
+      : kind === "long" && deductibleDays < requestedDays
+        ? "La déduction s’arrête aux jours d’accueil prévus pendant les 14 premiers jours calendaires. Au-delà, le salaire reprend ou le contrat doit être rompu ; vérifiez le planning réel."
+        : "";
+  return {
+    kind, documented, anniversary, calendarDays,
+    requestedDays: round(requestedDays, 2), requestedHours: round(requestedHours, 2),
+    scheduledHours: round(scheduledHours, 2), previousShortDays: round(priorShortDays, 2),
+    remainingShortDays: round(remainingShortDays, 2),
+    deductedDays: round(deductibleDays, 2), deductedHours: round(deductibleHours, 2),
+    deductionNet, warning
+  };
+}
+
 export function automaticAccrualWeeks(contract, period, endDate = "", adjustmentWeeks = 0) {
   if (!/^\d{4}-\d{2}$/.test(period || "")) return 0;
   const [year, month] = period.split("-").map(Number);
@@ -283,7 +378,7 @@ export function contractBasis(contract) {
   };
 }
 
-export function calculateDeclaration(contract, input) {
+export function calculateDeclaration(contract, input, priorRecords = {}) {
   const basis = contractBasis(contract);
   const netRate = Math.max(0, number(contract.netHourlyRate));
   const grossRate = Math.max(0, number(contract.grossHourlyRate) || estimatedGrossHourlyRate(netRate));
@@ -300,7 +395,8 @@ export function calculateDeclaration(contract, input) {
   const regularizationDays = input.isEndContract === "yes" ? Math.max(0, number(input.endingRegularizationDays)) : 0;
   const ruptureIndemnityNet = input.isEndContract === "yes" ? Math.max(0, number(input.ruptureIndemnityNet)) : 0;
   const otherSalaryNet = number(input.otherSalaryNet);
-  const deduction = Math.max(0, number(input.absenceDeductionNet));
+  const childAbsence = calculateChildAbsence(contract, input, priorRecords);
+  const deduction = childAbsence.deductionNet + Math.max(0, number(input.absenceDeductionNet));
 
   const calculatedNormalNet = basis.normalHoursExact * netRate;
   const calculatedContractMajorNet = basis.majorHoursExact * netRate * majorFactor;
@@ -323,7 +419,8 @@ export function calculateDeclaration(contract, input) {
   const complementaryGross = complementaryHours * grossRate * complementaryFactor;
   const extraMajorGross = extraMajorHours * grossRate * majorFactor;
   const estimatedGross = grossRate > 0
-    ? Math.max(0, normalGross + contractMajorGross + complementaryGross + extraMajorGross)
+    ? Math.max(0, normalGross + contractMajorGross + complementaryGross + extraMajorGross -
+      (netRate > 0 ? deduction * grossRate / netRate : 0))
     : 0;
   const officialGross = Math.max(0, number(input.officialGross));
 
@@ -338,7 +435,8 @@ export function calculateDeclaration(contract, input) {
     : number(contract.weeksPerYear) <= 46 && input.actualDays != null && number(contract.daysPerWeek) > 0
       ? Math.max(
           0,
-          number(input.actualDays) / number(contract.daysPerWeek) +
+          (number(input.actualDays) + Math.max(0, childAbsence.requestedDays - childAbsence.deductedDays)) /
+            number(contract.daysPerWeek) +
             number(input.leaveAdjustmentWeeks)
         )
       : automaticAccrualWeeks(
@@ -359,10 +457,13 @@ export function calculateDeclaration(contract, input) {
     : 0;
   const declaredNormalHoursExact = franceTravailPaidHours > 0
     ? referenceNormalHours
-    : normalHoursWithPaidLeave;
+    : Math.max(0, normalHoursWithPaidLeave - (netRate > 0 ? childAbsence.deductionNet / netRate : 0));
+  const declaredBaseDays = childAbsence.deductedDays > 0 ? Math.max(0, number(input.actualDays)) : basis.daysExact;
   const declaredDaysWithRegularization = input.isEndContract === "yes"
-    ? Math.min(31, Math.ceil(basis.daysExact + regularizationDays - 1e-9))
-    : basis.declaredDays;
+    ? Math.min(31, Math.ceil(declaredBaseDays + regularizationDays - 1e-9))
+    : childAbsence.deductedDays > 0
+      ? Math.max(0, Math.ceil(number(input.actualDays) - 1e-9))
+      : basis.declaredDays;
   const totalToPay = round(Math.max(
     0,
     netSalary + separateEndingSalaryElements + maintenance + meals + kilometers + ruptureIndemnityNet - advancePaid
@@ -396,6 +497,7 @@ export function calculateDeclaration(contract, input) {
       regularizationNet: round(regularizationNet),
       otherSalaryNet: round(otherSalaryNet),
       absenceDeductionNet: round(deduction),
+      childAbsenceDeductionNet: childAbsence.deductionNet,
       netSalary: round(netSalary),
       estimatedGross: round(estimatedGross),
       grossForHistory: round(officialGross || estimatedGross),
@@ -411,6 +513,7 @@ export function calculateDeclaration(contract, input) {
       maintenanceCalculation
     },
     advancePaid: round(advancePaid),
+    childAbsence,
     totalToPay,
     contributions,
     pajemploiSettlement: calculatePajemploiSettlement(totalToPay, input),
@@ -424,8 +527,8 @@ export function calculateDeclaration(contract, input) {
     regularizationConversion: {
       hours: round(regularizationHours, 4),
       days: round(regularizationDays, 4),
-      daysBeforeCap: round(basis.daysExact + regularizationDays, 4),
-      cappedAt31Days: basis.daysExact + regularizationDays > 31
+      daysBeforeCap: round(declaredBaseDays + regularizationDays, 4),
+      cappedAt31Days: declaredBaseDays + regularizationDays > 31
     },
     additional: {
       specificHours: input.specificHours === "yes",
