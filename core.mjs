@@ -325,7 +325,7 @@ export function calculateChildAbsence(contract, input, priorRecords = {}) {
     : kind === "short" && requestedDays > remainingShortDays
       ? `Plafond de 5 jours atteint : ${round(requestedDays - deductibleDays, 2)} jour(s) restent rémunérés.`
       : kind === "long" && deductibleDays < requestedDays
-        ? "La déduction s’arrête aux jours d’accueil prévus pendant les 14 premiers jours calendaires. Au-delà, le salaire reprend ou le contrat doit être rompu ; vérifiez le planning réel."
+        ? "La déduction s’arrête aux jours d’accueil prévus pendant les 14 jours calendaires suivant le premier jour d’absence. Au-delà, le salaire reprend ou le contrat doit être rompu ; vérifiez le planning réel."
         : "";
   return {
     kind, documented, anniversary, calendarDays,
@@ -446,7 +446,9 @@ export function calculateDeclaration(contract, input, priorRecords = {}) {
           input.leaveAdjustmentWeeks
         );
   const acquiredRaw = accrualWeeks * 2.5 / 4;
-  const cpHours = netRate > 0 ? (cpPaidNet + endingCpNet + noticeCompensationNet) / netRate : 0;
+  // Les indemnités compensatrices de fin de contrat ont leurs propres cases
+  // Pajemploi : elles ne créent ni jours de CP ordinaires ni heures normales.
+  const cpHours = netRate > 0 ? cpPaidNet / netRate : 0;
   const normalHoursWithPaidLeave = basis.normalHoursExact + cpHours + regularizationHours;
   const franceTravailPaidHours = Math.max(0, number(input.franceTravailPaidHours));
   const referenceNormalHours = franceTravailPaidHours > 0
@@ -482,7 +484,7 @@ export function calculateDeclaration(contract, input, priorRecords = {}) {
       normalHours: Math.round(declaredNormalHoursExact),
       complementaryHours: round(complementaryHours, 2),
       majorHours: round(basis.declaredContractMajorHours + extraMajorHours, 2),
-      cpDays: round(Math.max(0, number(input.cpDaysDeclared)) + Math.max(0, number(input.endingCpDays)), 2),
+      cpDays: round(Math.max(0, number(input.cpDaysDeclared)), 2),
       netSalary: round(netSalary)
     },
     salary: {

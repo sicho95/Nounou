@@ -1,5 +1,7 @@
 # NounouCalc
 
+Le résultat mensuel comporte un mémo « Cases Pajemploi+ à remplir, dans l’ordre » : données de travail, salaire et indemnités, questions complémentaires et, si nécessaire, indemnités de fin de contrat. Les cotisations, le CMG, le prélèvement à la source et le virement figurent séparément comme calculs ou rapprochements Pajemploi, jamais comme cases à ressaisir. Les congés compensés à la rupture ne sont pas ajoutés aux jours de congés ordinaires ni aux heures normales.
+
 NounouCalc est un assistant local pour préparer les déclarations mensuelles Pajemploi de l’assistante maternelle de Noa.
 
 ## Ce que fait la nouvelle version

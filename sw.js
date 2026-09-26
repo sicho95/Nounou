@@ -1,10 +1,11 @@
-const CACHE_NAME = "nounoucalc-runtime-v15";
+const CACHE_NAME = "nounoucalc-runtime-v16";
 const APP_SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./core.mjs",
+  "./pajemploi-guide.mjs",
   "./portfolio.mjs",
   "./manifest.webmanifest",
   "./icons/app-icon.svg",

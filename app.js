@@ -18,6 +18,7 @@ import {
   scheduledDaysInMonth
 } from "./core.mjs";
 import { contractLabel, createContract, ensurePortfolio, switchContract, syncActiveContract } from "./portfolio.mjs";
+import { buildPajemploiGuide } from "./pajemploi-guide.mjs";
 
 const STORAGE_KEY = "nounoucalc_v2";
 const DB_NAME = "nounoucalc-cold-storage";
@@ -913,6 +914,10 @@ function row(label, value, detail = "") {
 function renderResults(record) {
   const { input, results } = record;
   const { basis, declared, salary, expenses } = results;
+  $("pajemploiGuide").innerHTML = buildPajemploiGuide(state.admin, state.contract, input, results)
+    .map(section => `<section class="pajemploi-guide-section"><h3>${escapeHtml(section.title)}</h3>${section.rows
+      .map(item => `<div class="pajemploi-guide-row"><span>${escapeHtml(item.label)}${item.note ? `<small>${escapeHtml(item.note)}</small>` : ""}</span><strong>${escapeHtml(item.value)}</strong></div>`)
+      .join("")}</section>`).join("");
   $("outDeclaredDays").textContent = declared.days;
   $("outExactDays").textContent = results.regularizationConversion?.days
     ? `${round(basis.daysExact, 2)} jours mensualisés + ${results.regularizationConversion.days.toLocaleString("fr-FR")} jours de régularisation` +
@@ -928,7 +933,7 @@ function renderResults(record) {
   } else {
     normalHourDetails.push(`${round(basis.normalHoursExact, 2)} h mensualisées`);
     if (results.paidLeaveConversion.hours) {
-      normalHourDetails.push(`${round(results.paidLeaveConversion.hours, 2)} h équivalentes de congés/préavis`);
+      normalHourDetails.push(`${round(results.paidLeaveConversion.hours, 2)} h équivalentes de congés payés du mois`);
     }
     if (results.regularizationConversion?.hours) {
       normalHourDetails.push(`${round(results.regularizationConversion.hours, 2)} h de régularisation`);
@@ -1032,9 +1037,6 @@ function renderResults(record) {
     salary.complementaryNet ? row("Heures complémentaires", salary.complementaryNet, `${input.complementaryHours} h × ${compRate}`) : "",
     salary.extraMajorNet ? row("Heures majorées supplémentaires", salary.extraMajorNet, `${input.extraMajorHours} h × ${majorRate}`) : "",
     salary.cpPaidNet ? row("Congés payés", salary.cpPaidNet) : "",
-    salary.endingCpNet ? row("Indemnité compensatrice de congés", salary.endingCpNet) : "",
-    salary.noticeCompensationNet ? row("Indemnité compensatrice de préavis", salary.noticeCompensationNet) : "",
-    salary.precariousnessNet ? row("Prime de précarité", salary.precariousnessNet) : "",
     salary.regularizationNet ? row("Régularisation de salaire", salary.regularizationNet) : "",
     salary.otherSalaryNet ? row("Autre élément de salaire", salary.otherSalaryNet) : "",
     salary.childAbsenceDeductionNet ? row("Absence médicalement justifiée de l’enfant", -salary.childAbsenceDeductionNet,

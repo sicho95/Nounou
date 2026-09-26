@@ -241,8 +241,9 @@ test("une fin de contrat garde les indemnités dans leurs cases dédiées et les
     absenceDeductionNet: 0
   });
   assert.equal(result.ending.active, true);
-  assert.equal(result.declared.cpDays, 3);
-  assert.equal(result.paidLeaveConversion.hours, 79.36);
+  assert.equal(result.declared.cpDays, 0);
+  assert.equal(result.ending.cpDays, 3);
+  assert.equal(result.paidLeaveConversion.hours, 0);
   assert.equal(result.declared.netSalary, 651.67);
   assert.equal(
     Math.round((result.totalToPay - result.declared.netSalary - result.expenses.total) * 100) / 100,
